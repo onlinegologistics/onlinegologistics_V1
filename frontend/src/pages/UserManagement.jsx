@@ -11,7 +11,17 @@ const UserManagement = () => {
         name: '',
         username: '',
         password: '',
-        role: 'user', // default role
+        role: 'user',
+    });
+
+    // Edit modal state
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editUser, setEditUser] = useState(null);
+    const [editData, setEditData] = useState({
+        name: '',
+        username: '',
+        password: '',
+        role: 'user',
     });
 
     const config = {
@@ -69,7 +79,46 @@ const UserManagement = () => {
         }
     };
 
+    // Open edit modal
+    const openEditModal = (u) => {
+        setEditUser(u);
+        setEditData({
+            name: u.name,
+            username: u.username,
+            password: '', // blank = don't change
+            role: u.role,
+        });
+        setEditModalOpen(true);
+    };
 
+    // Handle edit form change
+    const handleEditChange = (e) => {
+        setEditData({ ...editData, [e.target.name]: e.target.value });
+    };
+
+    // Submit edit
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const payload = {
+                name: editData.name,
+                username: editData.username,
+                role: editData.role,
+            };
+            // Only send password if admin typed a new one
+            if (editData.password.trim()) {
+                payload.password = editData.password;
+            }
+
+            await axios.put(`/api/auth/${editUser._id}`, payload, config);
+            toast.success('User Updated Successfully');
+            setEditModalOpen(false);
+            setEditUser(null);
+            fetchUsers();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to update user');
+        }
+    };
 
     if (user?.role !== 'admin') {
         return <div className="p-4 text-red-600 font-bold">Access Denied. Admins Only.</div>;
@@ -163,20 +212,29 @@ const UserManagement = () => {
                                             {u.role}
                                         </span>
                                     </td>
-                                    <td className="border p-2 flex gap-2">
-                                        <Link
-                                            to={`/dashboard?userId=${u._id}&name=${encodeURIComponent(u.name)}`}
-                                            className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 flex items-center"
-                                        >
-                                            View Dashboard
-                                        </Link>
+                                    <td className="border p-2">
+                                        <div className="flex gap-2 flex-wrap">
+                                            <Link
+                                                to={`/dashboard?userId=${u._id}&name=${encodeURIComponent(u.name)}`}
+                                                className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 flex items-center"
+                                            >
+                                                View Dashboard
+                                            </Link>
 
-                                        <button
-                                            onClick={() => handleDelete(u._id)}
-                                            className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
-                                        >
-                                            Delete
-                                        </button>
+                                            <button
+                                                onClick={() => openEditModal(u)}
+                                                className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 font-bold"
+                                            >
+                                                ✏️ Edit
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleDelete(u._id)}
+                                                className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -184,6 +242,92 @@ const UserManagement = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Edit User Modal */}
+            {editModalOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+                        {/* Modal Header */}
+                        <div className="bg-[#1e293b] text-white px-6 py-4 flex justify-between items-center">
+                            <h3 className="text-lg font-bold">✏️ Edit User</h3>
+                            <button
+                                onClick={() => setEditModalOpen(false)}
+                                className="text-white/70 hover:text-white text-2xl leading-none"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Name</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={editData.name}
+                                    onChange={handleEditChange}
+                                    className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Username</label>
+                                <input
+                                    type="text"
+                                    name="username"
+                                    value={editData.username}
+                                    onChange={handleEditChange}
+                                    className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">
+                                    New Password <span className="text-gray-400 font-normal text-xs">(leave blank to keep current)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="password"
+                                    value={editData.password}
+                                    onChange={handleEditChange}
+                                    className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Enter new password..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Role</label>
+                                <select
+                                    name="role"
+                                    value={editData.role}
+                                    onChange={handleEditChange}
+                                    className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="user">User</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+
+                            {/* Modal Actions */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-bold hover:bg-green-700 transition"
+                                >
+                                    ✅ Save Changes
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditModalOpen(false)}
+                                    className="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-bold hover:bg-gray-300 transition"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
