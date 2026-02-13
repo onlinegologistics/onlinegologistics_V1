@@ -23,6 +23,9 @@ const luggageSchema = mongoose.Schema({
     creditParty: { type: String }, // Only if Credit
     creditOffice: { type: String }, // Credit Party / Credit Office
 
+    // Agent
+    agent: { type: String },
+
     // Goods Details
     noOfParcels: { type: Number, required: true },
     unit: { type: String, default: 'PKG' },

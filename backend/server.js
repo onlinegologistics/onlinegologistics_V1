@@ -35,6 +35,7 @@ app.use('/api/complaints', require('./routes/complaintRoutes'));
 app.use('/api/enquiries', require('./routes/enquiryRoutes'));
 app.use('/api/credit-offices', require('./routes/creditOfficeRoutes'));
 app.use('/api/pricing', require('./routes/pricingRoutes'));
+app.use('/api/agents', require('./routes/agentRoutes'));
 
 
 // Error Handling Middleware

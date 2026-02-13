@@ -181,6 +181,11 @@ const PrintReceipt = React.forwardRef(({ data }, ref) => {
                         Booking Office : Pune
                     </div>
                     <div>Sangamwadi(9209081234)</div>
+                    {data.agent && (
+                        <div style={{ marginTop: '3px', fontWeight: 'bold', fontSize: '9px' }}>
+                            Agent: {data.agent}
+                        </div>
+                    )}
                     <div style={{ marginTop: '4px' }}>
                         <div style={{ fontSize: '8px' }}>From</div>
                         <div style={{ fontWeight: 'bold' }}>Pune</div>

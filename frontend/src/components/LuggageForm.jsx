@@ -15,9 +15,13 @@ const LuggageForm = () => {
     const [printData, setPrintData] = useState(null);
     const [creditOfficesList, setCreditOfficesList] = useState([]);
     const [globalPricing, setGlobalPricing] = useState(null);
+    const [agentsList, setAgentsList] = useState([]);
+    const [showAgentModal, setShowAgentModal] = useState(false);
+    const [newAgentName, setNewAgentName] = useState('');
+    const [newAgentMobile, setNewAgentMobile] = useState('');
 
     useEffect(() => {
-        // Fetch credit offices & global pricing
+        // Fetch credit offices, global pricing & agents
         const fetchData = async () => {
             try {
                 const officesRes = await axios.get('/api/credit-offices');
@@ -27,12 +31,42 @@ const LuggageForm = () => {
                 if (pricingRes.data) {
                     setGlobalPricing(pricingRes.data);
                 }
+
+                const token = user?.token;
+                if (token) {
+                    const agentsRes = await axios.get('/api/agents', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    setAgentsList(agentsRes.data);
+                }
             } catch (error) {
                 console.error("Failed to fetch data", error);
             }
         };
         fetchData();
     }, []);
+
+    // Create agent inline
+    const handleCreateAgent = async () => {
+        if (!newAgentName.trim()) {
+            toast.error('Agent name is required');
+            return;
+        }
+        try {
+            const token = user?.token;
+            const { data } = await axios.post('/api/agents', { name: newAgentName, mobile: newAgentMobile }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Agent created!');
+            setAgentsList(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+            setFormData(prev => ({ ...prev, agent: data.name }));
+            setNewAgentName('');
+            setNewAgentMobile('');
+            setShowAgentModal(false);
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to create agent');
+        }
+    };
 
     const initialFormState = {
         date: (() => {
@@ -48,6 +82,7 @@ const LuggageForm = () => {
         receiverMobile: '',
         receiverGst: '',
         station: '',
+        agent: '',
         paymentMode: 'Paid',
         creditParty: '',
         creditOffice: '',
@@ -289,6 +324,18 @@ const LuggageForm = () => {
                         )}
 
                         <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Agent</label>
+                            <div className="flex gap-2">
+                                <select name="agent" value={formData.agent} onChange={handleChange} className="flex-1 bg-white border border-gray-300 rounded-lg p-3 font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="">-- Select Agent --</option>
+                                    {agentsList.map((agent) => (
+                                        <option key={agent._id} value={agent.name}>{agent.name}</option>
+                                    ))}
+                                </select>
+                                <button type="button" onClick={() => setShowAgentModal(true)} className="bg-green-600 text-white px-3 rounded-lg hover:bg-green-700 font-bold text-lg" title="Add New Agent">+</button>
+                            </div>
+                        </div>
+                        <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Receipt No (LR)</label>
                             <input value={formData.manualLrNo} readOnly placeholder="Auto-Generated"
                                 className="w-full bg-gray-100 border border-gray-200 rounded-lg p-3 text-gray-500 cursor-not-allowed" />
@@ -501,6 +548,32 @@ const LuggageForm = () => {
                     </div>
 
                 </form>
+
+                {/* Agent Creation Modal */}
+                {showAgentModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+                            <div className="bg-green-600 text-white px-5 py-3 flex justify-between items-center">
+                                <h3 className="font-bold">➕ Add New Agent</h3>
+                                <button onClick={() => setShowAgentModal(false)} className="text-white/70 hover:text-white text-xl">×</button>
+                            </div>
+                            <div className="p-5 space-y-3">
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">Agent Name <span className="text-red-500">*</span></label>
+                                    <input type="text" value={newAgentName} onChange={(e) => setNewAgentName(e.target.value)} className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Enter agent name" autoFocus />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold mb-1">Mobile</label>
+                                    <input type="text" value={newAgentMobile} onChange={(e) => setNewAgentMobile(e.target.value)} className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Mobile number" />
+                                </div>
+                                <div className="flex gap-3 pt-2">
+                                    <button onClick={handleCreateAgent} className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-bold hover:bg-green-700 transition">✅ Create</button>
+                                    <button onClick={() => setShowAgentModal(false)} className="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-bold hover:bg-gray-300 transition">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Hidden Print Component */}
                 <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
