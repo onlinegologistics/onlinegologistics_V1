@@ -88,6 +88,7 @@ const LuggageForm = () => {
         creditOffice: '',
         noOfParcels: '',
         unit: 'Parcel',
+        unitPrice: 0,
         manualLrNo: '',
         remarks: '',
         freight: 0,
@@ -163,22 +164,25 @@ const LuggageForm = () => {
         });
     }, [formData.freight, formData.insurance, formData.cartage, formData.loading, formData.unloading, formData.cgstPercent, formData.sgstPercent, formData.igstPercent, formData.cgst, formData.sgst, formData.igst]);
 
-    // Auto-calculate Freight based on Global Pricing categories
-    // Auto-calculate Freight based on Global Pricing categories
+    // Set unitPrice from global pricing when unit type changes
     useEffect(() => {
-        if (globalPricing?.categories && formData.noOfParcels) {
-            const qty = parseFloat(formData.noOfParcels) || 0;
-            const unitType = formData.unit;
-            const category = globalPricing.categories.find(c => c.name === unitType);
+        if (globalPricing?.categories) {
+            const category = globalPricing.categories.find(c => c.name === formData.unit);
             const price = category ? category.price : 0;
-            const calculatedFreight = price * qty;
-
-            // Only update if value is different to avoid loop/unnecessary renders
-            if (parseFloat(formData.freight) !== calculatedFreight) {
-                setFormData(prev => ({ ...prev, freight: calculatedFreight }));
-            }
+            setFormData(prev => ({ ...prev, unitPrice: price }));
         }
-    }, [formData.noOfParcels, formData.unit, globalPricing]);
+    }, [formData.unit, globalPricing]);
+
+    // Auto-calculate Freight based on unitPrice × noOfParcels
+    useEffect(() => {
+        const qty = parseFloat(formData.noOfParcels) || 0;
+        const price = parseFloat(formData.unitPrice) || 0;
+        const calculatedFreight = price * qty;
+
+        if (parseFloat(formData.freight) !== calculatedFreight) {
+            setFormData(prev => ({ ...prev, freight: calculatedFreight }));
+        }
+    }, [formData.noOfParcels, formData.unitPrice]);
 
     // Track the current system date to detect day changes
     const lastSystemDate = useRef((() => {
@@ -254,8 +258,8 @@ const LuggageForm = () => {
     };
 
     // Helper to get current unit price for display
-    const currentCategory = globalPricing?.categories?.find(c => c.name === formData.unit);
-    const currentPrice = currentCategory ? currentCategory.price : 0;
+    const globalCategory = globalPricing?.categories?.find(c => c.name === formData.unit);
+    const globalPrice = globalCategory ? globalCategory.price : 0;
 
     return (
         <div className="bg-gray-100 min-h-screen p-6">
@@ -418,7 +422,7 @@ const LuggageForm = () => {
                                             <option value="Parcel">Parcel</option>
                                         )}
                                     </select>
-                                    <p className="text-xs text-blue-600 mt-1 font-semibold">Rate: ₹{currentPrice} / {formData.unit}</p>
+                                    <p className="text-xs text-blue-600 mt-1 font-semibold">Default Rate: ₹{globalPrice} / {formData.unit}</p>
                                 </div>
 
                                 <div className="md:col-span-2">
@@ -433,7 +437,8 @@ const LuggageForm = () => {
 
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Unit Price</label>
-                                    <input value={currentPrice} readOnly className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-center text-gray-600 font-semibold cursor-not-allowed" />
+                                    <input type="number" name="unitPrice" value={formData.unitPrice} onChange={handleChange}
+                                        className="w-full border-2 border-blue-100 rounded-lg p-3 text-center text-blue-900 font-bold focus:border-blue-500 outline-none transition" placeholder="0" />
                                 </div>
 
                                 <div className="md:col-span-1 flex justify-center pb-4">
