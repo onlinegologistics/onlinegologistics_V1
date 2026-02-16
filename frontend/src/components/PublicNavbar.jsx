@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Phone } from 'lucide-react';
 
 const PublicNavbar = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -76,6 +76,19 @@ const PublicNavbar = () => {
                             </div>
                         </Link>
 
+                        {/* Help Line Number - Moved to right */}
+                        <div className="hidden md:flex items-center gap-3 border-l border-slate-200 pl-6 ml-2">
+                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                <Phone className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Help Line</span>
+                                <a href="tel:9209061234" className="text-base font-black text-slate-800 hover:text-blue-600 transition-colors tracking-tight">
+                                    9209061234
+                                </a>
+                            </div>
+                        </div>
+
                         {/* Mobile Menu Button */}
                         <button
                             onClick={toggleMenu}
@@ -111,6 +124,19 @@ const PublicNavbar = () => {
                     >
                         User Login
                     </Link>
+
+                    <a
+                        href="tel:9209061234"
+                        className="flex items-center gap-4 text-xl font-bold text-slate-800 hover:text-blue-600 transition-colors uppercase tracking-wide pt-2"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                            <Phone className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <span className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Help Line</span>
+                            <span>9209061234</span>
+                        </span>
+                    </a>
                 </div>
             </div>
         </nav>

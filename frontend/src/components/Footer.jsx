@@ -95,7 +95,7 @@ const Footer = () => {
                                         <h5 className="text-white font-bold text-sm mb-1 group-hover:text-blue-400 transition-colors">Bhosari Hub</h5>
                                         <p className="text-slate-400 text-xs leading-relaxed mb-1">Pmt chowk, Bhosari</p>
                                         <a href="tel:+919172911722" className="text-blue-500 text-xs font-bold hover:text-white transition-colors flex items-center gap-1">
-                                            +91 91729 11722
+                                            +91 9209061234
                                         </a>
                                     </div>
                                 </div>

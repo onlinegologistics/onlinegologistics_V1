@@ -221,10 +221,13 @@ const Services = () => {
                             Network Coverage
                         </span>
                         <h2 className="text-4xl md:text-6xl font-black text-slate-900 leading-tight mb-6">
-                            Our Daily <span className="text-blue-600 italic">Parcel Services</span>
+                            Our Daily Bus <span className="text-blue-600 italic">Parcel Services</span>
                         </h2>
-                        <p className="text-xl text-slate-500 font-bold uppercase tracking-widest">
-                            Super Fast Delivery • <a href="https://www.onlinego.in" className="text-blue-500 hover:underline">www.onlinego.in</a>
+                        <p className="text-3xl text-slate-500 font-bold uppercase tracking-widest mb-4">
+                            Super Fast Delivery • 
+                        </p>
+                        <p className="text-lg md:text-xl font-bold text-slate-600">
+                            For Daily route information visit : <a href="https://www.onlinego.in" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline decoration-2 underline-offset-4 decoration-blue-200 hover:decoration-blue-600 transition-all">www.onlinego.in</a>
                         </p>
                     </div>
 
@@ -243,7 +246,7 @@ const Services = () => {
 
                             {/* Column 2 */}
                             <ul className="space-y-4">
-                                {['Nashik', 'Latur', 'Jalna', 'Risod', 'Digras', 'Amravati', 'Akot', 'G.Khed'].map((city, i) => (
+                                {['Nashik', 'Latur', 'Jalna', 'Risod', 'Digras', 'Amravati', 'Akot', 'G.Khed', 'Humanabad'].map((city, i) => (
                                     <li key={i} className="flex items-center gap-3 group cursor-default">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:scale-125 transition-transform"></span>
                                         <span className="text-sm md:text-base font-bold text-slate-600 group-hover:text-blue-600 transition-colors uppercase tracking-wider font-['Inter']">{city}</span>
@@ -253,7 +256,7 @@ const Services = () => {
 
                             {/* Column 3 */}
                             <ul className="space-y-4">
-                                {['Majalgaon', 'Shahagad', 'Akkalkot', 'Shirdi', 'Udagir', 'Jintur', 'Hingoli', 'Arani'].map((city, i) => (
+                                {['Majalgaon', 'Shahagad', 'Akkalkot', 'Shirdi', 'Udagir', 'Jintur', 'Hingoli', 'Arani', 'Bidar'].map((city, i) => (
                                     <li key={i} className="flex items-center gap-3 group cursor-default">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:scale-125 transition-transform"></span>
                                         <span className="text-sm md:text-base font-bold text-slate-600 group-hover:text-blue-600 transition-colors uppercase tracking-wider font-['Inter']">{city}</span>
@@ -263,7 +266,7 @@ const Services = () => {
 
                             {/* Column 4 */}
                             <ul className="space-y-4">
-                                {['Nagpur', 'Daryapur', 'Nanded', 'Gevrai', 'Ambad', 'Gulbarga', 'Surat', 'Devoni'].map((city, i) => (
+                                {['Nagpur', 'Daryapur', 'Nanded', 'Gevrai', 'Ambad', 'Gulbarga', 'Surat', 'Devoni', 'Hyderabad'].map((city, i) => (
                                     <li key={i} className="flex items-center gap-3 group cursor-default">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:scale-125 transition-transform"></span>
                                         <span className="text-sm md:text-base font-bold text-slate-600 group-hover:text-blue-600 transition-colors uppercase tracking-wider font-['Inter']">{city}</span>
@@ -301,7 +304,7 @@ const Services = () => {
                                 Pmt Chowk,<br /> Bhosari
                             </p>
                             <a href="tel:+919172911722" className="inline-flex items-center gap-2 text-white font-black text-xl hover:translate-x-1 transition-transform">
-                                +91 91729 11722 <ArrowRight className="w-5 h-5" />
+                                +91 9209061234 <ArrowRight className="w-5 h-5" />
                             </a>
                         </div>
 
