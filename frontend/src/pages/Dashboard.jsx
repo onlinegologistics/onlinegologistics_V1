@@ -53,17 +53,18 @@ const Dashboard = () => {
 
                 const [luggageRes, complaintsRes, enquiriesRes] = await Promise.all([
                     axios.get('/api/luggage', { ...config, params }),
-                    axios.get('/api/complaints', { ...config, params }),
-                    axios.get('/api/enquiries', config) // Enquiries are global/public usually
+                    axios.get('/api/complaints', { ...config, params: { ...params, limit: 9999 } }),
+                    axios.get('/api/enquiries', { ...config, params: { limit: 9999 } })
                 ]);
 
                 const luggage = luggageRes.data;
-                const complaints = complaintsRes.data;
-                const enquiries = enquiriesRes.data;
+                // Complaints & Enquiries APIs return paginated objects
+                const complaints = complaintsRes.data?.complaints || complaintsRes.data || [];
+                const enquiries = enquiriesRes.data?.enquiries || enquiriesRes.data || [];
 
                 const totalRevenue = luggage.reduce((acc, item) => acc + (item.grandTotal || 0), 0);
-                const openComplaints = complaints.filter(c => c.status !== 'Closed' && c.status !== 'Resolved').length;
-                const openEnquiries = enquiries.filter(e => e.status !== 'Closed' && e.status !== 'Resolved').length;
+                const openComplaints = Array.isArray(complaints) ? complaints.filter(c => c.status !== 'Closed' && c.status !== 'Resolved').length : 0;
+                const openEnquiries = Array.isArray(enquiries) ? enquiries.filter(e => e.status !== 'Closed' && e.status !== 'Resolved').length : 0;
 
                 // Daily Stats Calculation
                 const dailyLuggage = luggage.filter(item => {

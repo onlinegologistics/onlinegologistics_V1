@@ -97,7 +97,7 @@ const LuggageTable = () => {
         const matchesAgent = !agentFilter || item.agent === agentFilter;
 
         // Date range filter
-        const itemDate = new Date(item.createdAt).toISOString().split('T')[0];
+        const itemDate = new Date(item.date || item.createdAt).toISOString().split('T')[0];
         const matchesDateFrom = !dateFrom || itemDate >= dateFrom;
         const matchesDateTo = !dateTo || itemDate <= dateTo;
 
@@ -123,7 +123,7 @@ const LuggageTable = () => {
 
         const exportData = filteredLuggage.map((item, idx) => ({
             '#': idx + 1,
-            'Date': new Date(item.createdAt).toLocaleDateString('en-GB'),
+            'Date': new Date(item.date || item.createdAt).toLocaleDateString('en-GB'),
             'LR No': item.manualLrNo || '-',
             'Sender': item.senderName || '',
             'Sender Mobile': item.senderMobile || '',
@@ -249,7 +249,7 @@ const LuggageTable = () => {
                         ) : (
                             paginatedLuggage.map((item) => (
                                 <tr key={item._id}>
-                                    <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{new Date(item.createdAt).toLocaleDateString('en-GB')}</td>
+                                    <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{new Date(item.date || item.createdAt).toLocaleDateString('en-GB')}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.manualLrNo || '-'}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.senderName}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.receiverName}</td>
