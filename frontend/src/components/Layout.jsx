@@ -53,6 +53,8 @@ const Layout = () => {
                 { to: "/complaints", label: "Complaints" },
                 { to: "/enquiries", label: "Enquiries" },
                 { to: "/credit-offices", label: "Offices" },
+                { to: "/customers", label: "Customers" },
+                { to: "/parcel-requests", label: "Parcel Requests" },
               ].map((link) => (
                 <Link
                   key={link.to}
@@ -122,6 +124,8 @@ const Layout = () => {
                   { to: "/complaints", label: "Complaints" },
                   { to: "/enquiries", label: "Enquiries" },
                   { to: "/credit-offices", label: "Offices" },
+                  { to: "/customers", label: "Customers" },
+                  { to: "/parcel-requests", label: "Parcel Requests" },
                 ].map((link) => (
                   <Link
                     key={link.to}

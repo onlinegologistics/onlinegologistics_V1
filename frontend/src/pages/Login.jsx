@@ -21,7 +21,10 @@ const Login = () => {
             const result = await login(username, password);
             if (result.success) {
                 toast.success('Logged in successfully');
-                setTimeout(() => navigate('/new-entry'), 500);
+                // Get user info from localStorage to check role
+                const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+                const redirectPath = userInfo?.role === 'customer' ? '/customer/dashboard' : '/dashboard';
+                setTimeout(() => navigate(redirectPath), 500);
             } else {
                 toast.error(result.message);
                 setIsLoading(false);

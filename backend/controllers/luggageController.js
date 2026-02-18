@@ -51,9 +51,13 @@ const getLuggage = async (req, res) => {
     // Build query
     let query = {};
 
-    // If not admin, only show own entries. If admin and userId provided, filter by that user.
+    // If not admin, only show own entries (created by them OR assigned to them as customer)
     if (req.user.role !== 'admin') {
-        query.createdBy = req.user._id;
+        const userId = req.user._id;
+        query.$or = [
+            { createdBy: userId },
+            { customer: userId }
+        ];
     } else if (userId) {
         query.createdBy = userId;
     }

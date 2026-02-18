@@ -62,6 +62,10 @@ const luggageSchema = mongoose.Schema({
         ref: 'User',
         required: true
     },
+    customer: { // Link to the registered customer (optional, for direct requests)
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
     date: {
         type: Date,
         default: Date.now

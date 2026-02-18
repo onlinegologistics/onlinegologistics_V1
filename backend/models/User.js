@@ -17,8 +17,24 @@ const userSchema = mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['admin', 'user'],
+        enum: ['admin', 'user', 'customer'],
         default: 'user',
+    },
+    createdByUser: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
+    email: {
+        type: String,
+    },
+    mobile: {
+        type: String,
+    },
+    address: {
+        type: String,
+    },
+    company: {
+        type: String,
     },
     isActive: {
         type: Boolean,

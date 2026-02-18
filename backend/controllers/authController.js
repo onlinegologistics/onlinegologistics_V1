@@ -33,7 +33,7 @@ const loginUser = async (req, res) => {
 // @route   POST /api/auth/register
 // @access  Private/Admin
 const registerUser = async (req, res) => {
-    const { name, username, password, role } = req.body;
+    const { name, username, password, role, email, mobile, address, company } = req.body;
 
     const userExists = await User.findOne({ username });
 
@@ -47,6 +47,11 @@ const registerUser = async (req, res) => {
         username,
         password,
         role,
+        email,
+        mobile,
+        address,
+        company,
+        createdByUser: req.user._id,
     });
 
     if (user) {
@@ -55,6 +60,10 @@ const registerUser = async (req, res) => {
             name: user.name,
             username: user.username,
             role: user.role,
+            email: user.email,
+            mobile: user.mobile,
+            address: user.address,
+            company: user.company,
         });
     } else {
         res.status(400).json({ message: 'Invalid user data' });
@@ -111,4 +120,16 @@ const updateUser = async (req, res) => {
     }
 };
 
-module.exports = { loginUser, registerUser, getUsers, deleteUser, updateUser };
+// @desc    Get all customers
+// @route   GET /api/auth/customers
+// @access  Private/AdminOrUser
+const getCustomers = async (req, res) => {
+    try {
+        const customers = await User.find({ role: 'customer' }).populate('createdByUser', 'name');
+        res.json(customers);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { loginUser, registerUser, getUsers, deleteUser, updateUser, getCustomers };

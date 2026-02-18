@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 import { useReactToPrint } from 'react-to-print';
@@ -9,6 +9,7 @@ import PrintReceipt from './PrintReceipt';
 const LuggageForm = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const componentRef = useRef();
 
     // State for storing data to print (separate from form data)
@@ -19,6 +20,24 @@ const LuggageForm = () => {
     const [showAgentModal, setShowAgentModal] = useState(false);
     const [newAgentName, setNewAgentName] = useState('');
     const [newAgentMobile, setNewAgentMobile] = useState('');
+
+    useEffect(() => {
+        // Pre-fill form if coming from Parcel Request
+        if (location.state?.parcelRequest) {
+            const req = location.state.parcelRequest;
+            setFormData(prev => ({
+                ...prev,
+                senderName: req.customer?.name || '',
+                senderAddress: req.pickupAddress || '',
+                receiverAddress: req.deliveryAddress || '',
+                senderMobile: req.customer?.mobile || '',
+                date: new Date(req.createdAt).toISOString().split('T')[0],
+                noOfParcels: req.quantity || '',
+                remarks: `Request ID: ${req._id}\n${req.packageDescription || ''}\n${req.remarks || ''}`,
+                customer: req.customer?._id // Store customer ID for linking
+            }));
+        }
+    }, [location.state]);
 
     useEffect(() => {
         // Fetch credit offices, global pricing & agents
@@ -104,6 +123,7 @@ const LuggageForm = () => {
         igstPercent: 0,
         ewayBillNo: '',
         ewayBillDate: '',
+        customer: null,
     };
 
     const [formData, setFormData] = useState(initialFormState);

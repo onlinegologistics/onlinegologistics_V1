@@ -36,6 +36,7 @@ app.use('/api/enquiries', require('./routes/enquiryRoutes'));
 app.use('/api/credit-offices', require('./routes/creditOfficeRoutes'));
 app.use('/api/pricing', require('./routes/pricingRoutes'));
 app.use('/api/agents', require('./routes/agentRoutes'));
+app.use('/api/parcel-requests', require('./routes/parcelRequestRoutes'));
 
 
 // Error Handling Middleware
