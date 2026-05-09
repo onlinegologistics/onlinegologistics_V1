@@ -15,13 +15,10 @@ jobs:
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
-        env:
-          GH_REPO: ${{ secrets.GH_REPO }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: GH_REPO
           script: |
             set -e
 
@@ -29,7 +26,7 @@ jobs:
 
             if [ ! -d "$PROJECT_DIR/.git" ]; then
               rm -rf $PROJECT_DIR
-              git clone https://github.com/${GH_REPO}.git $PROJECT_DIR
+              git clone https://github.com/onlinegologistics/onlinegologistics_V1.git $PROJECT_DIR
             else
               cd $PROJECT_DIR
               git pull origin main
