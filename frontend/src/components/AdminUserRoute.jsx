@@ -12,7 +12,6 @@ const AdminUserRoute = () => {
         return <Navigate to="/login" />;
     }
 
-    // If user is a customer, redirect to customer dashboard
     if (user.role === 'customer') {
         return <Navigate to="/customer/dashboard" />;
     }

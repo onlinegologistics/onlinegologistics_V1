@@ -14,7 +14,6 @@ export const AuthProvider = ({ children }) => {
         }
         setLoading(false);
 
-        // Axios interceptor to handle 401 errors (expired/invalid token)
         const interceptor = axios.interceptors.response.use(
             (response) => response,
             (error) => {
@@ -31,14 +30,14 @@ export const AuthProvider = ({ children }) => {
         };
     }, []);
 
-    const login = async (username, password) => {
+    const login = async (email, password) => {
         try {
             const config = {
                 headers: {
                     'Content-Type': 'application/json',
                 },
             };
-            const { data } = await axios.post('/api/auth/login', { username, password }, config);
+            const { data } = await axios.post('/api/auth/login', { email, password }, config);
             localStorage.setItem('userInfo', JSON.stringify(data));
             setUser(data);
             return { success: true };
@@ -63,5 +62,4 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-
 export default AuthContext;

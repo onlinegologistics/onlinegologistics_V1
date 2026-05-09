@@ -11,7 +11,6 @@ import AdminUserRoute from './components/AdminUserRoute';
 import CustomerRoute from './components/CustomerRoute';
 import Layout from './components/Layout';
 import CustomerLayout from './components/CustomerLayout';
-
 import Home from './pages/Home';
 import Services from './pages/Services';
 import ComplaintList from './pages/ComplaintList';
@@ -22,6 +21,7 @@ import CustomerManagement from './pages/CustomerManagement';
 import ParcelRequests from './pages/ParcelRequests';
 import CustomerDashboard from './pages/CustomerDashboard';
 import CustomerParcelRequest from './pages/CustomerParcelRequest';
+import Profile from './pages/Profile';
 
 function App() {
     return (
@@ -32,7 +32,6 @@ function App() {
                     <Route path="/services" element={<Services />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/raise-ticket" element={<RaiseTicket />} />
-
                     {/* Admin/User Routes */}
                     <Route element={<AdminUserRoute />}>
                         <Route element={<Layout />}>
@@ -46,9 +45,9 @@ function App() {
                             <Route path="/reports" element={<Reports />} />
                             <Route path="/customers" element={<CustomerManagement />} />
                             <Route path="/parcel-requests" element={<ParcelRequests />} />
+                            <Route path="/profile" element={<Profile />} />
                         </Route>
                     </Route>
-
                     {/* Customer Routes */}
                     <Route element={<CustomerRoute />}>
                         <Route element={<CustomerLayout />}>
@@ -62,5 +61,4 @@ function App() {
         </AuthProvider>
     );
 }
-
 export default App;

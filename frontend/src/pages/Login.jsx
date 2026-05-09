@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 import PublicNavbar from '../components/PublicNavbar';
-import { motion, AnimatePresence } from 'framer-motion';
-import { User, Lock, LogIn, ArrowLeft, ShieldCheck, Zap, Globe } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Mail, Lock, LogIn, ArrowLeft, ShieldCheck, Zap, Globe, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Login = () => {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -18,10 +18,9 @@ const Login = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            const result = await login(username, password);
+            const result = await login(email, password);
             if (result.success) {
                 toast.success('Logged in successfully');
-                // Get user info from localStorage to check role
                 const userInfo = JSON.parse(localStorage.getItem('userInfo'));
                 const redirectPath = userInfo?.role === 'customer' ? '/customer/dashboard' : '/dashboard';
                 setTimeout(() => navigate(redirectPath), 500);
@@ -39,26 +38,20 @@ const Login = () => {
         <div className="h-screen bg-slate-50 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
             <Toaster position="top-right" />
 
-            {/* Navbar Spacer */}
             <div className="z-50">
                 <PublicNavbar />
             </div>
 
-            {/* Main Content Area - Perfectly Centered without Scroll */}
             <main className="flex-grow flex flex-col items-center justify-center pt-20 px-6 lg:px-12">
                 <div className="w-full max-w-7xl mx-auto h-auto min-h-[500px] lg:h-[70vh] flex flex-col lg:flex-row bg-white rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden">
 
-                    {/* Left Side - Visual/Branding */}
+                    {/* Left Side */}
                     <div className="hidden lg:flex lg:w-5/12 relative bg-slate-950 items-center justify-center p-10 overflow-hidden h-full">
                         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[120px] -mr-64 -mt-64"></div>
                         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] -ml-64 -mb-64"></div>
 
                         <div className="relative z-10 w-full">
-                            <motion.div
-                                initial={{ opacity: 0, x: -30 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.8 }}
-                            >
+                            <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
                                 <span className="inline-block px-4 py-1.5 bg-blue-500/10 backdrop-blur-md border border-blue-500/20 rounded-full text-blue-400 text-[10px] font-black tracking-widest uppercase mb-6">
                                     Administrator Access
                                 </span>
@@ -113,17 +106,17 @@ const Login = () => {
 
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] ml-1">Username</label>
+                                    <label className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] ml-1">Email</label>
                                     <div className="relative group">
                                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">
-                                            <User className="h-5 w-5" />
+                                            <Mail className="h-5 w-5" />
                                         </div>
                                         <input
-                                            type="text"
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
                                             className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all duration-200 font-medium text-slate-900 placeholder-slate-400 text-sm"
-                                            placeholder="admin_id"
+                                            placeholder="admin@example.com"
                                             required
                                         />
                                     </div>
@@ -172,7 +165,6 @@ const Login = () => {
                 </div>
             </main>
 
-            {/* Micro Footer - Sticky at the very bottom */}
             <div className="py-6 text-center">
                 <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.5em] opacity-50">
                     &copy; {new Date().getFullYear()} ONLINE GO Luggage Billing. All rights reserved.
