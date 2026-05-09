@@ -1,45 +1,19 @@
-name: Deploy OnlineGoLogistics
+version: '3.8'
 
-on:
-  push:
-    branches:
-      - main
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: onlinegologistics_backend
+    restart: always
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./backend/.env
+    networks:
+      - app-network
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-
-            PROJECT_DIR=/var/www/onlinegologistics/onlinegologistics
-
-            if [ ! -d "$PROJECT_DIR/.git" ]; then
-              rm -rf $PROJECT_DIR
-              git clone https://github.com/onlinegologistics/onlinegologistics_V1.git $PROJECT_DIR
-            else
-              cd $PROJECT_DIR
-              git pull origin main
-            fi
-
-            cd $PROJECT_DIR
-
-            cd frontend
-            npm install
-            npm run build
-            cd ..
-
-            docker compose down || true
-            docker compose up -d --build
-
-            echo "Deployment complete!"
+networks:
+  app-network:
+    driver: bridge
