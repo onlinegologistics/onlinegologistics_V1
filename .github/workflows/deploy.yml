@@ -14,35 +14,26 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-
             PROJECT_DIR=/var/www/onlinegologistics/onlinegologistics
-
-            # Clone if not exists, else pull
             if [ ! -d "$PROJECT_DIR/.git" ]; then
               rm -rf $PROJECT_DIR
-              git clone https://github.com/${{ secrets.GH_REPO }}.git $PROJECT_DIR
+              git clone https://github.com/onlinegologistics/onlinegologistics_V1.git $PROJECT_DIR
             else
               cd $PROJECT_DIR
               git pull origin main
             fi
-
             cd $PROJECT_DIR
-
-            # Build Frontend
             cd frontend
             npm install
             npm run build
             cd ..
-
-            # Restart Backend Docker container
             docker compose down || true
             docker compose up -d --build
-
-            echo "✅ Deployment complete!"
+            echo "Deployment complete!"
