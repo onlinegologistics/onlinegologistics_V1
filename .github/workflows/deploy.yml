@@ -28,7 +28,8 @@ jobs:
               git clone https://github.com/onlinegologistics/onlinegologistics_V1.git $PROJECT_DIR
             else
               cd $PROJECT_DIR
-              git pull origin main
+              git fetch origin main
+              git reset --hard origin/main
             fi
             cd $PROJECT_DIR
             cd frontend
