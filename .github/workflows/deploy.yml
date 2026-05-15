@@ -37,5 +37,6 @@ jobs:
             npm run build
             cd ..
             docker compose down || true
+            sudo fuser -k 5001/tcp || true
             docker compose up -d --build
             echo "Deployment complete!"
