@@ -3,6 +3,7 @@ import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Calendar, ChevronLeft, ChevronRight, Filter, RefreshCw, Download } from 'lucide-react';
+import EnquiryModal from './EnquiryModal';
 
 const EnquiryList = () => {
     const [enquiries, setEnquiries] = useState([]);
@@ -13,6 +14,7 @@ const EnquiryList = () => {
         limit: 10
     });
     const [loading, setLoading] = useState(false);
+    const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
     const { user } = useContext(AuthContext);
 
     // Filter states
@@ -169,10 +171,24 @@ const EnquiryList = () => {
 
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
+            <EnquiryModal
+                isOpen={isEnquiryModalOpen}
+                onClose={() => {
+                    setIsEnquiryModalOpen(false);
+                    fetchEnquiries();
+                }}
+            />
             {/* Header */}
-            <div className="mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">Enquiries Management</h2>
-                <p className="text-gray-600">Manage and track customer enquiries</p>
+            <div className="mb-6 flex justify-between items-center flex-wrap gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">Enquiries Management</h2>
+                    <p className="text-gray-600">Manage and track customer enquiries</p>
+                </div>
+                {(user?.role === 'agent' || user?.role === 'customer') && (
+                    <button onClick={() => setIsEnquiryModalOpen(true)} className="px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-lg">
+                        + New Enquiry
+                    </button>
+                )}
             </div>
 
             {/* Filter Section */}
@@ -326,16 +342,20 @@ const EnquiryList = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <select
-                                                value={enquiry.status}
-                                                onChange={(e) => handleStatusUpdate(enquiry._id, e.target.value)}
-                                                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer hover:border-green-500 transition-colors"
-                                            >
-                                                <option value="Open">Open</option>
-                                                <option value="In Progress">In Progress</option>
-                                                <option value="Resolved">Resolved</option>
-                                                <option value="Closed">Closed</option>
-                                            </select>
+                                            {(user?.role === 'admin' || user?.role === 'branch') ? (
+                                                <select
+                                                    value={enquiry.status}
+                                                    onChange={(e) => handleStatusUpdate(enquiry._id, e.target.value)}
+                                                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer hover:border-green-500 transition-colors"
+                                                >
+                                                    <option value="Open">Open</option>
+                                                    <option value="In Progress">In Progress</option>
+                                                    <option value="Resolved">Resolved</option>
+                                                    <option value="Closed">Closed</option>
+                                                </select>
+                                            ) : (
+                                                <span className="text-sm text-gray-500 italic">No action</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

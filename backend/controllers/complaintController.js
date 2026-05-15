@@ -9,9 +9,19 @@ const getComplaints = asyncHandler(async (req, res) => {
     
     // Build filter query
     const query = {};
+    // Role-based data isolation
+    if (req.user) {
+        if (req.user.role === 'branch') {
+            // Branch sees complaints created by them OR by their agents
+            query.$or = [{ user: req.user._id }, { branch: req.user._id }];
+        } else if (req.user.role === 'agent' || req.user.role === 'customer') {
+            // Agents/Customers only see their own
+            query.user = req.user._id;
+        }
+    }
     
-    // Filter by user if userId is provided
-    if (userId) {
+    // Explicit filter by user if provided (mostly for admin)
+    if (userId && (!req.user || req.user.role === 'admin')) {
         query.user = userId;
     }
     
@@ -40,7 +50,8 @@ const getComplaints = asyncHandler(async (req, res) => {
 
     // Fetch complaints with filters and pagination
     const complaints = await Complaint.find(query)
-        .populate('user', 'name username mobile')
+        .populate('user', 'name username mobile role')
+        .populate('branch', 'name username')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum);
@@ -81,6 +92,12 @@ const createComplaint = asyncHandler(async (req, res) => {
 
     if (req.user) {
         complaintData.user = req.user._id;
+        // If an agent or customer created this, assign their branch
+        if (req.user.role === 'agent' || req.user.role === 'customer') {
+            complaintData.branch = req.user.createdByUser || req.user.createdBy;
+        } else if (req.user.role === 'branch') {
+            complaintData.branch = req.user._id;
+        }
     } else {
         if (!contactName || !contactMobile) {
             res.status(400);

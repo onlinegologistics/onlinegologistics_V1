@@ -6,6 +6,10 @@ const complaintSchema = mongoose.Schema({
         required: false, // Made optional for guest users
         ref: 'User',
     },
+    branch: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
     contactName: {
         type: String, // For guest users
     },

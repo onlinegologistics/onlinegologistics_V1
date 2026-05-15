@@ -16,6 +16,10 @@ const AdminUserRoute = () => {
         return <Navigate to="/customer/dashboard" />;
     }
 
+    if (user.role === 'agent') {
+        return <Navigate to="/agent/dashboard" />;
+    }
+
     return <Outlet />;
 };
 

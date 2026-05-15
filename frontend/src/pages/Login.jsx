@@ -22,7 +22,7 @@ const Login = () => {
             if (result.success) {
                 toast.success('Logged in successfully');
                 const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-                const redirectPath = userInfo?.role === 'customer' ? '/customer/dashboard' : '/dashboard';
+                const redirectPath = userInfo?.role === 'customer' ? '/customer/dashboard' : userInfo?.role === 'agent' ? '/agent/dashboard' : '/dashboard';
                 setTimeout(() => navigate(redirectPath), 500);
             } else {
                 toast.error(result.message);

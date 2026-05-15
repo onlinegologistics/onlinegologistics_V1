@@ -22,6 +22,11 @@ import ParcelRequests from './pages/ParcelRequests';
 import CustomerDashboard from './pages/CustomerDashboard';
 import CustomerParcelRequest from './pages/CustomerParcelRequest';
 import Profile from './pages/Profile';
+import BranchDetails from './pages/BranchDetails';
+import AgentDashboard from './pages/AgentDashboard';
+import AgentParcelRequests from './pages/AgentParcelRequests';
+import AgentComplaints from './pages/AgentComplaints';
+import AddRecord from './pages/AddRecord';
 
 function App() {
     return (
@@ -41,11 +46,22 @@ function App() {
                             <Route path="/complaints" element={<ComplaintList />} />
                             <Route path="/enquiries" element={<Enquiries />} />
                             <Route path="/users" element={<UserManagement />} />
+                            <Route path="/branch/:id" element={<BranchDetails />} />
                             <Route path="/credit-offices" element={<CreditOffices />} />
                             <Route path="/reports" element={<Reports />} />
                             <Route path="/customers" element={<CustomerManagement />} />
+                            <Route path="/add-record" element={<AddRecord />} />
                             <Route path="/parcel-requests" element={<ParcelRequests />} />
+                            <Route path="/agent-parcel-requests" element={<AgentParcelRequests />} />
                             <Route path="/profile" element={<Profile />} />
+                        </Route>
+                    </Route>
+                    {/* Agent Routes */}
+                    <Route element={<PrivateRoute />}>
+                        <Route element={<Layout />}>
+                            <Route path="/agent/dashboard" element={<AgentDashboard />} />
+                            <Route path="/agent/complaints" element={<AgentComplaints />} />
+                            <Route path="/agent/raise-ticket" element={<RaiseTicket />} />
                         </Route>
                     </Route>
                     {/* Customer Routes */}

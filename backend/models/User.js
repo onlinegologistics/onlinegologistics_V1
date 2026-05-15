@@ -7,7 +7,7 @@ const userSchema = mongoose.Schema({
     password: { type: String, required: true },
     role: {
         type: String,
-        enum: ['admin', 'user', 'customer'],
+        enum: ['admin', 'branch', 'user', 'customer', 'agent'],
         default: 'user',
     },
     createdByUser: {
@@ -18,6 +18,11 @@ const userSchema = mongoose.Schema({
     mobile: { type: String },
     address: { type: String },
     company: { type: String },
+    clientType: {
+        type: String,
+        enum: ['regular', 'agent', '10-day', ''],
+        default: '',
+    },
     isActive: { type: Boolean, default: true },
     otp: { type: String },
     otpExpiry: { type: Date },

@@ -6,18 +6,33 @@ const {
     getParcelRequestById,
     updateParcelRequestStatus,
 } = require('../controllers/parcelRequestController');
-const { protect, adminOrUser } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
+const { checkPermission } = require('../middleware/roleAuth');
+const { PERMISSIONS } = require('../config/roles');
 
-// Any authenticated user can create and list (filtered by role in controller)
-router.route('/')
-    .post(protect, createParcelRequest)
-    .get(protect, getParcelRequests);
+// Create parcel request - sab authenticated users
+router.post('/',
+    protect,
+    createParcelRequest
+);
 
-router.route('/:id')
-    .get(protect, getParcelRequestById);
+// View all parcel requests - sab dekh sakte hain
+router.get('/',
+    protect,
+    getParcelRequests
+);
 
-// Only admin/user can update status
-router.route('/:id/status')
-    .put(protect, adminOrUser, updateParcelRequestStatus);
+// View parcel request by ID
+router.get('/:id',
+    protect,
+    getParcelRequestById
+);
+
+// Update parcel request status - sirf admin aur superadmin
+router.put('/:id/status',
+    protect,
+    checkPermission(PERMISSIONS.UPDATE_PARCEL),
+    updateParcelRequestStatus
+);
 
 module.exports = router;

@@ -3,9 +3,72 @@ import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Menu, X, LogOut } from "lucide-react";
 
+// Role-based navigation links
+const getNavLinks = (role) => {
+  const common = [
+    { to: "/dashboard", label: "Dashboard" },
+  ];
+
+  switch (role) {
+    case "admin":
+      // Admin (Super Admin): Branch, pricing, commission, reports
+      return [
+        ...common,
+        { to: "/users", label: "Branches & Users" },
+        { to: "/credit-offices", label: "Offices" },
+        { to: "/add-record", label: "Add Record" },
+        { to: "/reports", label: "Reports" },
+        { to: "/complaints", label: "Complaints" },
+        { to: "/enquiries", label: "Enquiries" },
+        { to: "/parcel-requests", label: "Parcels" },
+        { to: "/agent-parcel-requests", label: "Agent Requests" },
+      ];
+    case "branch":
+      // Branch Panel: Parcel receive, manage agents/customers
+      return [
+        ...common,
+        { to: "/new-entry", label: "New Entry" },
+        { to: "/add-record", label: "Add Record" },
+        { to: "/parcel-requests", label: "Parcels" },
+        { to: "/agent-parcel-requests", label: "Agent Requests" },
+        { to: "/customers", label: "Customers" },
+        { to: "/users", label: "Agents" },
+        { to: "/complaints", label: "Complaints" },
+        { to: "/enquiries", label: "Enquiries" },
+      ];
+    case "user":
+      // Staff User: Basic entry work
+      return [
+        ...common,
+        { to: "/new-entry", label: "New Entry" },
+        { to: "/parcel-requests", label: "Parcels" },
+      ];
+    case "agent":
+      // Agent Panel: Parcel requests, complaints
+      return [
+        { to: "/agent/dashboard", label: "Dashboard" },
+        { to: "/agent/complaints", label: "Complaints" },
+      ];
+    default:
+      return common;
+  }
+};
+
+// Role label for the navbar subtitle
+const getRoleLabel = (role) => {
+  switch (role) {
+    case "admin": return "Admin Panel";
+    case "branch": return "Branch Panel";
+    case "user": return "Staff Panel";
+    case "agent": return "Agent Panel";
+    default: return "Dashboard";
+  }
+};
+
 const Layout = () => {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navLinks = getNavLinks(user?.role);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -22,7 +85,7 @@ const Layout = () => {
               <span className="text-lg font-black tracking-tight text-white leading-none">
                 ONLINE <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">GO</span>
               </span>
-              <span className="text-[0.55rem] font-medium text-gray-400 tracking-widest uppercase">Admin Dashboard</span>
+              <span className="text-[0.55rem] font-medium text-gray-400 tracking-widest uppercase">{getRoleLabel(user?.role)}</span>
             </div>
           </Link>
 
@@ -33,19 +96,12 @@ const Layout = () => {
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
               <span className="text-gray-300 text-xs font-medium">
                 <span className="text-white font-semibold">{user?.name}</span>
+                <span className="text-gray-500 ml-1.5 text-[10px] uppercase">{user?.role}</span>
               </span>
             </div>
 
             <div className="flex items-center gap-0.5 bg-white/5 rounded-full px-1 py-1 border border-white/10">
-              {[
-                { to: "/dashboard", label: "Dashboard" },
-                { to: "/new-entry", label: "New Entry" },
-                { to: "/complaints", label: "Complaints" },
-                { to: "/enquiries", label: "Enquiries" },
-                { to: "/credit-offices", label: "Offices" },
-                { to: "/customers", label: "Customers" },
-                { to: "/parcel-requests", label: "Parcels" },
-              ].map((link) => (
+              {navLinks.map((link) => (
                 <Link
                   key={link.to}
                   to={link.to}
@@ -54,15 +110,6 @@ const Layout = () => {
                   {link.label}
                 </Link>
               ))}
-
-              {user?.role === "admin" && (
-                <Link
-                  to="/users"
-                  className="px-3 py-1.5 rounded-full text-xs font-bold text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-all duration-300 whitespace-nowrap"
-                >
-                  Users
-                </Link>
-              )}
 
               <Link
                 to="/profile"
@@ -97,18 +144,11 @@ const Layout = () => {
               <div className="bg-white/5 px-4 py-2 rounded-xl flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                 <span className="text-gray-300 text-sm">Welcome, <span className="text-white font-semibold">{user?.name}</span></span>
+                <span className="text-gray-500 text-[10px] uppercase ml-auto">{user?.role}</span>
               </div>
 
               <div className="flex flex-col gap-1">
-                {[
-                  { to: "/dashboard", label: "Dashboard" },
-                  { to: "/new-entry", label: "New Entry" },
-                  { to: "/complaints", label: "Complaints" },
-                  { to: "/enquiries", label: "Enquiries" },
-                  { to: "/credit-offices", label: "Offices" },
-                  { to: "/customers", label: "Customers" },
-                  { to: "/parcel-requests", label: "Parcel Requests" },
-                ].map((link) => (
+                {navLinks.map((link) => (
                   <Link
                     key={link.to}
                     to={link.to}
@@ -118,16 +158,6 @@ const Layout = () => {
                     {link.label}
                   </Link>
                 ))}
-
-                {user?.role === "admin" && (
-                  <Link
-                    to="/users"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="px-4 py-2.5 rounded-lg text-sm font-bold text-amber-400 hover:bg-amber-400/10 transition-colors"
-                  >
-                    Manage Users
-                  </Link>
-                )}
 
                 <Link
                   to="/profile"

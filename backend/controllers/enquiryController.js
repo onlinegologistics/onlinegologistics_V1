@@ -10,6 +10,17 @@ const getEnquiries = asyncHandler(async (req, res) => {
   // Build filter query
   const filter = {};
 
+  // Role-based data isolation
+  if (req.user) {
+      if (req.user.role === 'branch') {
+          // Branch sees enquiries created by them OR by their agents
+          filter.$or = [{ user: req.user._id }, { branch: req.user._id }];
+      } else if (req.user.role === 'agent' || req.user.role === 'customer') {
+          // Agents/Customers only see their own
+          filter.user = req.user._id;
+      }
+  }
+
   // Date filtering
   if (startDate || endDate) {
     filter.createdAt = {};
@@ -35,6 +46,8 @@ const getEnquiries = asyncHandler(async (req, res) => {
 
   // Fetch enquiries with filters and pagination
   const enquiries = await Enquiry.find(filter)
+    .populate('user', 'name username role')
+    .populate('branch', 'name username')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limitNum);
@@ -63,11 +76,23 @@ const createEnquiry = asyncHandler(async (req, res) => {
     throw new Error("Please add all fields");
   }
 
-  const enquiry = await Enquiry.create({
+  const enquiryData = {
     name,
     mobile,
     message,
-  });
+  };
+
+  if (req.user) {
+      enquiryData.user = req.user._id;
+      // If an agent or customer created this, assign their branch
+      if (req.user.role === 'agent' || req.user.role === 'customer') {
+          enquiryData.branch = req.user.createdByUser || req.user.createdBy;
+      } else if (req.user.role === 'branch') {
+          enquiryData.branch = req.user._id;
+      }
+  }
+
+  const enquiry = await Enquiry.create(enquiryData);
 
   res.status(201).json(enquiry);
 });

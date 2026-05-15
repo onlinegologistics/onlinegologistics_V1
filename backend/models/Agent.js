@@ -9,6 +9,10 @@ const agentSchema = mongoose.Schema({
     mobile: {
         type: String,
     },
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
     isActive: {
         type: Boolean,
         default: true,

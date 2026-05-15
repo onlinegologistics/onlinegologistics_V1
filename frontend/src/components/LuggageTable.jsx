@@ -40,7 +40,7 @@ const LuggageTable = () => {
                 params: {}
             };
 
-            if (userId && user.role === 'admin') {
+            if (userId && (user.role === 'admin' || user.role === 'branch')) {
                 config.params.userId = userId;
             }
 
@@ -263,7 +263,7 @@ const LuggageTable = () => {
                                         >
                                             Print
                                         </button>
-                                        {user.role === 'admin' && (
+                                        {(user.role === 'admin' || user.role === 'branch') && (
                                             <button
                                                 onClick={() => deleteLuggage(item._id)}
                                                 className="text-white bg-red-600 hover:bg-red-700 font-bold py-1 px-3 rounded text-xs"

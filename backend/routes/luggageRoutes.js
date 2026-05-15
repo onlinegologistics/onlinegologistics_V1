@@ -7,15 +7,42 @@ const {
     deleteLuggage,
     updateLuggage,
 } = require('../controllers/luggageController');
-const { protect, admin } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
+const { checkPermission } = require('../middleware/roleAuth');
+const { PERMISSIONS } = require('../config/roles');
 
-router.route('/')
-    .post(protect, createLuggage)
-    .get(protect, getLuggage); // Allow both roles to view for now, or restrict. Requirement only explicitly restricts "User can only add", implying they might not manage/edit/delete.
+// Add luggage - sirf admin aur superadmin
+router.post('/',
+    protect,
+    checkPermission(PERMISSIONS.ADD_LUGGAGE),
+    createLuggage
+);
 
-router.route('/:id')
-    .get(protect, getLuggageById)
-    .delete(protect, admin, deleteLuggage)
-    .put(protect, admin, updateLuggage);
+// View all luggage - sab dekh sakte hain
+router.get('/',
+    protect,
+    checkPermission(PERMISSIONS.VIEW_LUGGAGE),
+    getLuggage
+);
+
+// View luggage by ID
+router.get('/:id',
+    protect,
+    getLuggageById
+);
+
+// Update luggage - sirf admin aur superadmin
+router.put('/:id',
+    protect,
+    checkPermission(PERMISSIONS.UPDATE_LUGGAGE),
+    updateLuggage
+);
+
+// Delete luggage - sirf superadmin
+router.delete('/:id',
+    protect,
+    checkPermission(PERMISSIONS.DELETE_LUGGAGE),
+    deleteLuggage
+);
 
 module.exports = router;

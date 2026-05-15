@@ -9,43 +9,49 @@ const importData = async () => {
     try {
         await connectDB();
 
-        // Check if admin exists
-        const adminExists = await User.findOne({ username: 'admin' });
+        // Delete old users
+        await User.deleteMany({ username: { $in: ['admin', 'panel_admin', 'user'] } });
+        console.log('Old users deleted');
 
-        if (!adminExists) {
-            const adminUser = {
-                name: 'Admin User',
-                username: 'admin',
-                password: 'password123',
-                role: 'admin',
-                isActive: true,
-            };
-            await User.create(adminUser);
-            console.log('Admin User Created: admin / password123');
-        } else {
-            console.log('Admin User already exists');
-        }
+        // Create ADMIN (top level - all power)
+        const adminUser = {
+            name: 'Admin',
+            email: 'surajkurrey956@gmail.com',
+            username: 'admin',
+            password: 'Suraj@2001',
+            role: 'admin',
+            isActive: true,
+        };
+        await User.create(adminUser);
+        console.log('✅ Admin Created: surajkurrey956@gmail.com / Suraj@2001');
 
-        // Check if regular user exists
-        const userExists = await User.findOne({ username: 'user' });
+        // Create BRANCH PANEL (limited access)
+        const branchUser = {
+            name: 'Branch Panel',
+            email: 'branch@local.com',
+            username: 'panel_admin',
+            password: 'password123',
+            role: 'branch',
+            isActive: true,
+        };
+        await User.create(branchUser);
+        console.log('✅ Branch Panel Created: branch@local.com / password123');
 
-        if (!userExists) {
-            const regularUser = {
-                name: 'Staff User',
-                username: 'user',
-                password: 'password123',
-                role: 'user',
-                isActive: true,
-            };
-            await User.create(regularUser);
-            console.log('Regular User Created: user / password123');
-        } else {
-            console.log('Regular User already exists');
-        }
+        // Create regular USER
+        const regularUser = {
+            name: 'Staff User',
+            username: 'user',
+            password: 'password123',
+            role: 'user',
+            isActive: true,
+        };
+        await User.create(regularUser);
+        console.log('✅ Regular User Created: user / password123');
 
+        console.log('\n🎉 All users created successfully!');
         process.exit();
     } catch (error) {
-        console.error(`${error}`);
+        console.error(`❌ Error: ${error}`);
         process.exit(1);
     }
 };

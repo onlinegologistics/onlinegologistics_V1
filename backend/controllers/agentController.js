@@ -2,7 +2,7 @@ const Agent = require('../models/Agent');
 
 // @desc    Create new agent
 // @route   POST /api/agents
-// @access  Private (Admin & User)
+// @access  Private (Admin & Branch)
 const createAgent = async (req, res) => {
     try {
         const { name, mobile } = req.body;
@@ -16,19 +16,30 @@ const createAgent = async (req, res) => {
             return res.status(400).json({ message: 'Agent with this name already exists' });
         }
 
-        const agent = await Agent.create({ name, mobile });
+        const agent = await Agent.create({
+            name,
+            mobile,
+            createdBy: req.user._id,
+        });
         res.status(201).json(agent);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
 };
 
-// @desc    Get all agents
+// @desc    Get agents (branch sees own, admin sees all)
 // @route   GET /api/agents
-// @access  Private (Admin & User)
+// @access  Private (Admin & Branch)
 const getAgents = async (req, res) => {
     try {
-        const agents = await Agent.find({ isActive: true }).sort({ name: 1 });
+        const filter = { isActive: true };
+        // Branch users only see their own agents
+        if (req.user.role === 'branch') {
+            filter.createdBy = req.user._id;
+        }
+        const agents = await Agent.find(filter)
+            .populate('createdBy', 'name role')
+            .sort({ name: 1 });
         res.json(agents);
     } catch (error) {
         res.status(500).json({ message: error.message });

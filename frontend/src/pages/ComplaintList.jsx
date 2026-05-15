@@ -183,9 +183,16 @@ const ComplaintList = () => {
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
             {/* Header */}
-            <div className="mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">Complaints & Tickets Management</h2>
-                <p className="text-gray-600">Manage and resolve customer complaints and support tickets</p>
+            <div className="mb-6 flex justify-between items-center flex-wrap gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">Complaints & Tickets Management</h2>
+                    <p className="text-gray-600">Manage and resolve customer complaints and support tickets</p>
+                </div>
+                {(user?.role === 'agent' || user?.role === 'customer') && (
+                    <button onClick={() => window.location.href = `/${user.role}/raise-ticket`} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg">
+                        + Raise New Ticket
+                    </button>
+                )}
             </div>
 
             {/* Filter Section */}
@@ -334,13 +341,20 @@ const ComplaintList = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-semibold text-gray-900">
-                                                    {ticket.user?.name || ticket.contactName || 'Guest'}
-                                                </span>
-                                                {!ticket.user && (
-                                                    <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs rounded-full font-medium">
-                                                        Guest
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-semibold text-gray-900">
+                                                        {ticket.user?.name || ticket.contactName || 'Guest'}
+                                                    </span>
+                                                    {!ticket.user && (
+                                                        <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs rounded-full font-medium">
+                                                            Guest
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {user?.role === 'admin' && ticket.branch && (
+                                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded w-fit font-bold">
+                                                        Branch: {ticket.branch.name}
                                                     </span>
                                                 )}
                                             </div>
@@ -367,16 +381,20 @@ const ComplaintList = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <select
-                                                value={ticket.status}
-                                                onChange={(e) => handleStatusUpdate(ticket._id, e.target.value)}
-                                                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer hover:border-blue-500 transition-colors"
-                                            >
-                                                <option value="Open">Open</option>
-                                                <option value="In Progress">In Progress</option>
-                                                <option value="Resolved">Resolved</option>
-                                                <option value="Closed">Closed</option>
-                                            </select>
+                                            {(user?.role === 'admin' || user?.role === 'branch') ? (
+                                                <select
+                                                    value={ticket.status}
+                                                    onChange={(e) => handleStatusUpdate(ticket._id, e.target.value)}
+                                                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer hover:border-blue-500 transition-colors"
+                                                >
+                                                    <option value="Open">Open</option>
+                                                    <option value="In Progress">In Progress</option>
+                                                    <option value="Resolved">Resolved</option>
+                                                    <option value="Closed">Closed</option>
+                                                </select>
+                                            ) : (
+                                                <span className="text-sm text-gray-500 italic">No action</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

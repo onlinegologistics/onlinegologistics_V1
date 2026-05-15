@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
-import { UserPlus, Trash2, Edit3, X, Users, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Trash2, Edit3, X, Users, Eye, EyeOff, Lock } from 'lucide-react';
+import { canAddCustomer, canUpdateCustomer, canDeleteCustomer, ROLES } from '../utils/permissions';
 
 // Moved OUTSIDE the main component to prevent re-creation on every render
 const Modal = ({ show, onClose, title, children }) => {
@@ -91,6 +92,11 @@ const CustomerManagement = () => {
 
     const config = { headers: { Authorization: `Bearer ${user.token}` } };
 
+    // Check permissions
+    const hasAddPermission = canAddCustomer(user?.role);
+    const hasEditPermission = canUpdateCustomer(user?.role);
+    const hasDeletePermission = canDeleteCustomer(user?.role);
+
     useEffect(() => {
         fetchCustomers();
     }, []);
@@ -129,7 +135,7 @@ const CustomerManagement = () => {
             toast.success('Customer deleted');
             fetchCustomers();
         } catch (error) {
-            toast.error('Failed to delete customer');
+            toast.error(error.response?.data?.message || 'Failed to delete customer');
         }
     };
 
@@ -173,12 +179,22 @@ const CustomerManagement = () => {
                     <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                         <Users className="text-blue-600" /> Customer Management
                     </h1>
-                    <p className="text-gray-500 mt-1">Create and manage customer accounts</p>
+                    <p className="text-gray-500 mt-1">
+                        {user?.role === ROLES.ADMIN ? 'Full access' : user?.role === ROLES.BRANCH ? 'Branch access' : 'View only'}
+                    </p>
                 </div>
-                <button onClick={() => setShowModal(true)}
-                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all flex items-center gap-2 shadow-lg">
-                    <UserPlus size={18} /> Add Customer
-                </button>
+                
+                {hasAddPermission ? (
+                    <button onClick={() => setShowModal(true)}
+                        className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all flex items-center gap-2 shadow-lg">
+                        <UserPlus size={18} /> Add Customer
+                    </button>
+                ) : (
+                    <button disabled
+                        className="bg-gray-300 text-gray-600 px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 cursor-not-allowed opacity-60">
+                        <Lock size={18} /> No Permission
+                    </button>
+                )}
             </div>
 
             {/* Customers Table */}
@@ -216,14 +232,29 @@ const CustomerManagement = () => {
                                         <td className="px-5 py-4 text-sm text-gray-500">{c.createdByUser?.name || '-'}</td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => openEditModal(c)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                                                    <Edit3 size={16} />
-                                                </button>
-                                                <button onClick={() => handleDelete(c._id)}
-                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                {hasEditPermission ? (
+                                                    <button onClick={() => openEditModal(c)}
+                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                                                        <Edit3 size={16} />
+                                                    </button>
+                                                ) : (
+                                                    <button disabled
+                                                        className="p-2 text-gray-300 cursor-not-allowed" title="No edit permission">
+                                                        <Edit3 size={16} />
+                                                    </button>
+                                                )}
+                                                
+                                                {hasDeletePermission ? (
+                                                    <button onClick={() => handleDelete(c._id)}
+                                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                ) : (
+                                                    <button disabled
+                                                        className="p-2 text-gray-300 cursor-not-allowed" title="No delete permission">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -235,26 +266,30 @@ const CustomerManagement = () => {
             </div>
 
             {/* Create Modal */}
-            <Modal show={showModal} onClose={() => setShowModal(false)} title="Create New Customer">
-                <form onSubmit={handleSubmit}>
-                    <FormFields data={form} onChange={handleChange} isEdit={false} showPassword={showPassword} setShowPassword={setShowPassword} />
-                    <button type="submit"
-                        className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2">
-                        <UserPlus size={18} /> Create Customer
-                    </button>
-                </form>
-            </Modal>
+            {hasAddPermission && (
+                <Modal show={showModal} onClose={() => setShowModal(false)} title="Create New Customer">
+                    <form onSubmit={handleSubmit}>
+                        <FormFields data={form} onChange={handleChange} isEdit={false} showPassword={showPassword} setShowPassword={setShowPassword} />
+                        <button type="submit"
+                            className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2">
+                            <UserPlus size={18} /> Create Customer
+                        </button>
+                    </form>
+                </Modal>
+            )}
 
             {/* Edit Modal */}
-            <Modal show={editModal} onClose={() => setEditModal(false)} title="Edit Customer">
-                <form onSubmit={handleEditSubmit}>
-                    <FormFields data={editForm} onChange={handleEditChange} isEdit={true} showPassword={showPassword} setShowPassword={setShowPassword} />
-                    <button type="submit"
-                        className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2">
-                        <Edit3 size={18} /> Update Customer
-                    </button>
-                </form>
-            </Modal>
+            {hasEditPermission && (
+                <Modal show={editModal} onClose={() => setEditModal(false)} title="Edit Customer">
+                    <form onSubmit={handleEditSubmit}>
+                        <FormFields data={editForm} onChange={handleEditChange} isEdit={true} showPassword={showPassword} setShowPassword={setShowPassword} />
+                        <button type="submit"
+                            className="w-full mt-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2">
+                            <Edit3 size={18} /> Update Customer
+                        </button>
+                    </form>
+                </Modal>
+            )}
         </div>
     );
 };
