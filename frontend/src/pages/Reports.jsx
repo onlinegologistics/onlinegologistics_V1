@@ -30,6 +30,7 @@ const Reports = () => {
         fromStation: '',
         toStation: '',
         paymentMode: '',
+        branch: '',
     });
 
     // Pagination
@@ -51,14 +52,73 @@ const Reports = () => {
         },
     };
 
-    // Fetch all luggage data
+    // Fetch all luggage and parcel data
     const fetchReportData = async () => {
         setLoading(true);
         try {
-            const { data } = await axios.get('/api/luggage', config);
-            setLuggageData(data);
-            setFilteredData(data);
-            calculateStats(data);
+            const [luggageRes, parcelRes] = await Promise.all([
+                axios.get('/api/luggage', config),
+                axios.get('/api/parcel-records', config)
+            ]);
+
+            const formattedLuggage = luggageRes.data.map(item => ({
+                ...item,
+                recordType: 'Luggage',
+                displayLrNo: item.manualLrNo || `LR-${item._id.slice(-8)}`,
+                displayDate: item.date,
+                displaySender: item.senderName,
+                displayReceiver: item.receiverName,
+                displayDestination: item.station,
+                displayParcels: `${item.noOfParcels} ${item.unit || ''}`,
+                displayWeight: item.weight,
+                displaySenderGst: item.senderGst,
+                displayReceiverGst: item.receiverGst,
+                displayEwayBill: item.ewayBillNo,
+                displayPayment: item.paymentMode,
+                displayAmount: parseFloat(item.grandTotal) || 0,
+                // keep for filters
+                station: item.station,
+                paymentMode: item.paymentMode,
+                date: item.date,
+                grandTotal: parseFloat(item.grandTotal) || 0,
+                branchName: item.createdBy?.name || 'Unknown',
+            }));
+
+            let formattedParcels = [];
+            parcelRes.data.forEach(r => {
+                const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
+                dests.forEach((d, idx) => {
+                    formattedParcels.push({
+                        _id: `${r._id}-${idx}`, // unique id for table key
+                        originalId: r._id,
+                        recordType: 'Parcel',
+                        displayLrNo: `PR-${r._id.slice(-6)}`,
+                        displayDate: r.date,
+                        displaySender: r.clientName,
+                        displayReceiver: d.company || '-',
+                        displayDestination: d.toCity,
+                        displayParcels: `${d.noOfParcels || 1} ${d.parcelType || 'Box'}`,
+                        displayWeight: d.weight,
+                        displaySenderGst: null,
+                        displayReceiverGst: null,
+                        displayEwayBill: null,
+                        displayPayment: d.paymentMode || 'Paid',
+                        displayAmount: parseFloat(d.totalAmount) || 0,
+                        // keep for filters
+                        station: d.toCity,
+                        paymentMode: d.paymentMode || 'Paid',
+                        date: r.date,
+                        grandTotal: parseFloat(d.totalAmount) || 0,
+                        branchName: r.createdBy?.name || 'Unknown',
+                    });
+                });
+            });
+
+            const combinedData = [...formattedLuggage, ...formattedParcels].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            setLuggageData(combinedData);
+            setFilteredData(combinedData);
+            calculateStats(combinedData);
         } catch (error) {
             console.error(error);
             toast.error('Failed to fetch report data');
@@ -124,6 +184,11 @@ const Reports = () => {
             filtered = filtered.filter(item => item.paymentMode === filters.paymentMode);
         }
 
+        // Branch filter
+        if (filters.branch) {
+            filtered = filtered.filter(item => item.branchName === filters.branch);
+        }
+
         setFilteredData(filtered);
         calculateStats(filtered);
         setCurrentPage(1);
@@ -137,6 +202,7 @@ const Reports = () => {
             fromStation: '',
             toStation: '',
             paymentMode: '',
+            branch: '',
         });
         setFilteredData(luggageData);
         calculateStats(luggageData);
@@ -148,8 +214,9 @@ const Reports = () => {
         return value !== null && value !== undefined && value !== '' && value !== 0;
     };
 
-    // Get unique stations for dropdown
+    // Get unique stations and branches for dropdown
     const uniqueStations = [...new Set(luggageData.map(item => item.station))].filter(Boolean);
+    const uniqueBranches = [...new Set(luggageData.map(item => item.branchName))].filter(name => name !== 'Unknown');
 
     // Pagination
     const indexOfLastItem = currentPage * itemsPerPage;
@@ -163,16 +230,22 @@ const Reports = () => {
 
     // Export to CSV
     const exportToCSV = () => {
-        const headers = ['LR No', 'Date', 'Sender', 'Receiver', 'Destination', 'Parcels', 'Payment Mode', 'Amount'];
+        const headers = ['Type', 'Branch', 'LR No', 'Date', 'Sender', 'Receiver', 'Destination', 'Parcels', 'Weight', 'Sender GST', 'Receiver GST', 'E-way Bill', 'Payment Mode', 'Amount'];
         const csvData = filteredData.map(item => [
-            item.manualLrNo || item._id.slice(-8),
-            new Date(item.date).toLocaleDateString('en-GB'),
-            item.senderName,
-            item.receiverName,
-            item.station,
-            item.noOfParcels,
-            item.paymentMode,
-            item.grandTotal
+            item.recordType,
+            `"${(item.branchName || '').replace(/"/g, '""')}"`,
+            item.displayLrNo,
+            new Date(item.displayDate).toLocaleDateString('en-GB'),
+            `"${(item.displaySender || '').replace(/"/g, '""')}"`,
+            `"${(item.displayReceiver || '').replace(/"/g, '""')}"`,
+            `"${(item.displayDestination || '').replace(/"/g, '""')}"`,
+            `"${(item.displayParcels || '').replace(/"/g, '""')}"`,
+            `"${(item.displayWeight || '').replace(/"/g, '""')}"`,
+            `"${(item.displaySenderGst || '').replace(/"/g, '""')}"`,
+            `"${(item.displayReceiverGst || '').replace(/"/g, '""')}"`,
+            `"${(item.displayEwayBill || '').replace(/"/g, '""')}"`,
+            item.displayPayment,
+            item.displayAmount
         ]);
 
         const csv = [headers, ...csvData].map(row => row.join(',')).join('\n');
@@ -180,7 +253,7 @@ const Reports = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `luggage_report_${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `master_report_${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         toast.success('Report exported successfully!');
     };
@@ -263,9 +336,9 @@ const Reports = () => {
                     <div>
                         <h1 className="text-4xl font-bold text-gray-800 mb-2 flex items-center gap-3">
                             <FileText className="w-10 h-10 text-purple-600" />
-                            Luggage Reports
+                            Master Reports
                         </h1>
-                        <p className="text-gray-600">Comprehensive report with filters and analytics</p>
+                        <p className="text-gray-600">Comprehensive report for Luggage and Parcel Records</p>
                     </div>
                     <div className="flex gap-3 print:hidden">
                         <button
@@ -346,7 +419,7 @@ const Reports = () => {
                     <h2 className="text-xl font-bold text-gray-800">Filters</h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                     <div>
                         <label className="flex items-center gap-2 text-sm font-bold mb-2 text-gray-700">
                             <Calendar className="w-4 h-4 text-purple-600" />
@@ -372,6 +445,25 @@ const Reports = () => {
                             className="border-2 border-gray-300 p-2 w-full rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
                         />
                     </div>
+
+                    {user?.role === 'admin' && (
+                        <div>
+                            <label className="flex items-center gap-2 text-sm font-bold mb-2 text-gray-700">
+                                <FileText className="w-4 h-4 text-purple-600" />
+                                Branch
+                            </label>
+                            <select
+                                value={filters.branch}
+                                onChange={(e) => setFilters({ ...filters, branch: e.target.value })}
+                                className="border-2 border-gray-300 p-2 w-full rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                            >
+                                <option value="">All Branches</option>
+                                {uniqueBranches.map((branch, idx) => (
+                                    <option key={idx} value={branch}>{branch}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     <div>
                         <label className="flex items-center gap-2 text-sm font-bold mb-2 text-gray-700">
@@ -451,6 +543,7 @@ const Reports = () => {
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-gradient-to-r from-purple-50 to-purple-100">
                                 <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Type</th>
                                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">LR No</th>
                                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date</th>
                                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Sender</th>
@@ -458,16 +551,16 @@ const Reports = () => {
                                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Destination</th>
                                     <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Parcels</th>
                                     {/* Only show columns that have data in filtered results */}
-                                    {currentItems.some(item => hasValue(item.weight)) && (
+                                    {currentItems.some(item => hasValue(item.displayWeight)) && (
                                         <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Weight</th>
                                     )}
-                                    {currentItems.some(item => hasValue(item.senderGst)) && (
+                                    {currentItems.some(item => hasValue(item.displaySenderGst)) && (
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Sender GST</th>
                                     )}
-                                    {currentItems.some(item => hasValue(item.receiverGst)) && (
+                                    {currentItems.some(item => hasValue(item.displayReceiverGst)) && (
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Receiver GST</th>
                                     )}
-                                    {currentItems.some(item => hasValue(item.ewayBillNo)) && (
+                                    {currentItems.some(item => hasValue(item.displayEwayBill)) && (
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">E-way Bill</th>
                                     )}
                                     <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Payment</th>
@@ -477,64 +570,71 @@ const Reports = () => {
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {currentItems.map((item, idx) => (
                                     <tr key={item._id} className="hover:bg-purple-50 transition-colors">
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                item.recordType === 'Luggage' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'
+                                            }`}>
+                                                {item.recordType}
+                                            </span>
+                                        </td>
                                         <td className="px-4 py-3 font-semibold text-purple-900">
-                                            {item.manualLrNo || `LR-${item._id.slice(-8)}`}
+                                            {item.displayLrNo}
                                         </td>
                                         <td className="px-4 py-3 text-gray-700">
-                                            {new Date(item.date).toLocaleDateString('en-GB')}
+                                            {new Date(item.displayDate).toLocaleDateString('en-GB')}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="font-medium text-gray-900">{item.senderName}</div>
-                                            {hasValue(item.senderMobile) && (
+                                            <div className="font-medium text-gray-900">{item.displaySender}</div>
+                                            {item.recordType === 'Luggage' && hasValue(item.senderMobile) && (
                                                 <div className="text-xs text-gray-500">{item.senderMobile}</div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="font-medium text-gray-900">{item.receiverName}</div>
-                                            {hasValue(item.receiverMobile) && (
+                                            <div className="font-medium text-gray-900">{item.displayReceiver}</div>
+                                            {item.recordType === 'Luggage' && hasValue(item.receiverMobile) && (
                                                 <div className="text-xs text-gray-500">{item.receiverMobile}</div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
-                                                {item.station}
+                                            <span className="bg-gray-100 text-gray-800 border border-gray-200 px-2 py-1 rounded text-xs font-medium">
+                                                {item.displayDestination}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-center font-semibold">
-                                            {item.noOfParcels} {item.unit}
+                                            {item.displayParcels}
                                         </td>
-                                        {currentItems.some(i => hasValue(i.weight)) && (
+                                        {currentItems.some(i => hasValue(i.displayWeight)) && (
                                             <td className="px-4 py-3 text-center">
-                                                {hasValue(item.weight) ? `${item.weight} kg` : '-'}
+                                                {hasValue(item.displayWeight) ? `${item.displayWeight} kg` : '-'}
                                             </td>
                                         )}
-                                        {currentItems.some(i => hasValue(i.senderGst)) && (
+                                        {currentItems.some(i => hasValue(i.displaySenderGst)) && (
                                             <td className="px-4 py-3 text-xs">
-                                                {hasValue(item.senderGst) ? item.senderGst : '-'}
+                                                {hasValue(item.displaySenderGst) ? item.displaySenderGst : '-'}
                                             </td>
                                         )}
-                                        {currentItems.some(i => hasValue(i.receiverGst)) && (
+                                        {currentItems.some(i => hasValue(i.displayReceiverGst)) && (
                                             <td className="px-4 py-3 text-xs">
-                                                {hasValue(item.receiverGst) ? item.receiverGst : '-'}
+                                                {hasValue(item.displayReceiverGst) ? item.displayReceiverGst : '-'}
                                             </td>
                                         )}
-                                        {currentItems.some(i => hasValue(i.ewayBillNo)) && (
+                                        {currentItems.some(i => hasValue(i.displayEwayBill)) && (
                                             <td className="px-4 py-3 text-xs">
-                                                {hasValue(item.ewayBillNo) ? item.ewayBillNo : '-'}
+                                                {hasValue(item.displayEwayBill) ? item.displayEwayBill : '-'}
                                             </td>
                                         )}
                                         <td className="px-4 py-3 text-center">
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                                item.paymentMode === 'Paid' ? 'bg-green-100 text-green-800' :
-                                                item.paymentMode === 'ToPay' ? 'bg-yellow-100 text-yellow-800' :
-                                                item.paymentMode === 'Credit' ? 'bg-orange-100 text-orange-800' :
+                                                item.displayPayment === 'Paid' ? 'bg-green-100 text-green-800' :
+                                                item.displayPayment === 'ToPay' ? 'bg-yellow-100 text-yellow-800' :
+                                                item.displayPayment === 'Credit' ? 'bg-orange-100 text-orange-800' :
                                                 'bg-gray-100 text-gray-800'
                                             }`}>
-                                                {item.paymentMode}
+                                                {item.displayPayment}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right font-bold text-green-700">
-                                            ₹{parseFloat(item.grandTotal).toFixed(2)}
+                                            ₹{parseFloat(item.displayAmount).toFixed(2)}
                                         </td>
                                     </tr>
                                 ))}

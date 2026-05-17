@@ -16,25 +16,20 @@ const getNavLinks = (role) => {
         ...common,
         { to: "/users", label: "Branches & Users" },
         { to: "/credit-offices", label: "Offices" },
-        { to: "/add-record", label: "Add Record" },
+        { to: "/add-record", label: "New Entry" },
         { to: "/reports", label: "Reports" },
         { to: "/complaints", label: "Complaints" },
-        { to: "/enquiries", label: "Enquiries" },
-        { to: "/parcel-requests", label: "Parcels" },
-        { to: "/agent-parcel-requests", label: "Agent Requests" },
+        { to: "/agent-parcel-requests", label: "Parcels Requests" },
       ];
     case "branch":
       // Branch Panel: Parcel receive, manage agents/customers
       return [
         ...common,
-        { to: "/new-entry", label: "New Entry" },
-        { to: "/add-record", label: "Add Record" },
-        { to: "/parcel-requests", label: "Parcels" },
-        { to: "/agent-parcel-requests", label: "Agent Requests" },
-        { to: "/customers", label: "Customers" },
+        { to: "/add-record", label: "New Entry" },
+        { to: "/agent-parcel-requests", label: "Parcels Requests" },
         { to: "/users", label: "Agents" },
         { to: "/complaints", label: "Complaints" },
-        { to: "/enquiries", label: "Enquiries" },
+        { to: "/reports", label: "Reports" },
       ];
     case "user":
       // Staff User: Basic entry work

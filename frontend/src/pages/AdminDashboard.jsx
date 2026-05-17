@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import LuggageTable from '../components/LuggageTable';
+import ParcelRecordTable from '../components/ParcelRecordTable';
+import DashboardParcelRequestTable from '../components/DashboardParcelRequestTable';
 import { Link, useSearchParams } from 'react-router-dom';
 
 const AdminDashboard = () => {
@@ -14,14 +16,12 @@ const AdminDashboard = () => {
         totalLuggage: 0,
         totalRevenue: 0,
         openComplaints: 0,
-        openEnquiries: 0,
         dailyRevenue: 0,
         dailyEntries: 0
     });
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [userPerformance, setUserPerformance] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
-
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -35,19 +35,18 @@ const AdminDashboard = () => {
                     params.userId = userId;
                 }
 
-                const [luggageRes, complaintsRes, enquiriesRes] = await Promise.all([
+                const [luggageRes, complaintsRes] = await Promise.all([
                     axios.get('/api/luggage', { ...config, params }),
-                    axios.get('/api/complaints', { ...config, params: { ...params, limit: 9999 } }),
-                    axios.get('/api/enquiries', { ...config, params: { limit: 9999 } })
+                    axios.get('/api/complaints', { ...config, params: { ...params, limit: 9999 } })
                 ]);
 
                 const luggage = luggageRes.data;
                 const complaints = complaintsRes.data?.complaints || complaintsRes.data || [];
-                const enquiries = enquiriesRes.data?.enquiries || enquiriesRes.data || [];
 
                 const totalRevenue = luggage.reduce((acc, item) => acc + (item.grandTotal || 0), 0);
-                const openComplaints = Array.isArray(complaints) ? complaints.filter(c => c.status !== 'Closed' && c.status !== 'Resolved').length : 0;
-                const openEnquiries = Array.isArray(enquiries) ? enquiries.filter(e => e.status !== 'Closed' && e.status !== 'Resolved').length : 0;
+                const openComplaints = Array.isArray(complaints)
+                    ? complaints.filter(c => c.status !== 'Closed' && c.status !== 'Resolved').length
+                    : 0;
 
                 const dailyLuggage = luggage.filter(item => {
                     const itemDate = new Date(item.createdAt).toISOString().split('T')[0];
@@ -59,7 +58,6 @@ const AdminDashboard = () => {
                     totalLuggage: luggage.length,
                     totalRevenue,
                     openComplaints,
-                    openEnquiries,
                     dailyRevenue,
                     dailyEntries: dailyLuggage.length
                 });
@@ -101,6 +99,7 @@ const AdminDashboard = () => {
 
     return (
         <div>
+            {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <div className="flex items-center gap-3">
                     <h1 className="text-3xl font-bold text-gray-800">
@@ -116,8 +115,8 @@ const AdminDashboard = () => {
                     )}
                 </div>
 
-
                 <div className="flex flex-col md:flex-row items-center gap-3">
+                    {/* Date Picker */}
                     <div className="flex items-center bg-white border border-gray-300 rounded-lg px-3 py-2">
                         <span className="text-gray-500 mr-2 text-sm">Date:</span>
                         <input
@@ -127,13 +126,31 @@ const AdminDashboard = () => {
                             className="outline-none text-gray-700 font-medium"
                         />
                     </div>
-                    <Link to="/new-entry" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold shadow whitespace-nowrap">
-                        + New Entry
-                    </Link>
+
+                    {/* Add Record Button (branch role only) */}
+                    {user?.role === 'branch' && (
+                        <Link
+                            to="/add-record"
+                            className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800 font-semibold shadow whitespace-nowrap"
+                        >
+                            + New Entry
+                        </Link>
+                    )}
+
+                    {/* New Entry Button */}
+                    {user?.role !== 'branch' && (
+                        <Link
+                            to="/new-entry"
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold shadow whitespace-nowrap"
+                        >
+                            + New Entry
+                        </Link>
+                    )}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-xl shadow-sm border border-blue-100 ring-2 ring-blue-50">
                     <div className="text-blue-600 text-sm font-bold uppercase tracking-wider mb-1">
                         Revenue ({new Date(selectedDate).toLocaleDateString('en-GB')})
@@ -151,19 +168,33 @@ const AdminDashboard = () => {
                     <div className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-1">Open Complaints</div>
                     <div className="text-3xl font-bold text-red-500">{stats.openComplaints}</div>
                 </div>
-
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <div className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-1">New Enquiries</div>
-                    <div className="text-3xl font-bold text-purple-500">{stats.openEnquiries}</div>
-                </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            {/* Recent Luggage Entries / New Entry */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
                 <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-gray-700">Recent Luggage Entries</h2>
+                    <h2 className="text-lg font-bold text-gray-700">
+                        {user?.role === 'branch' ? 'New Entry' : 'Recent Luggage Entries'}
+                    </h2>
+                    <Link to="/add-record" className="text-sm text-blue-600 hover:underline font-medium">
+                        View All →
+                    </Link>
                 </div>
-                <LuggageTable />
+                {user?.role === 'branch' ? <ParcelRecordTable limit={10} /> : <LuggageTable limit={10} />}
             </div>
+
+            {/* Parcels Request Section (Branch Only) */}
+            {user?.role === 'branch' && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                        <h2 className="text-lg font-bold text-gray-700">Parcels Request</h2>
+                        <Link to="/parcel-requests" className="text-sm text-blue-600 hover:underline font-medium">
+                            View All →
+                        </Link>
+                    </div>
+                    <DashboardParcelRequestTable limit={10} />
+                </div>
+            )}
         </div>
     );
 };

@@ -11,10 +11,25 @@ const parcelRecordSchema = mongoose.Schema({
     address: { type: String },
     company: { type: String },
 
-    // Parcel Details
+    // Support for multiple destinations
+    destinations: [{
+        toCity: { type: String },
+        noOfParcels: { type: Number, default: 1 },
+        weight: { type: String },
+        description: { type: String },
+        parcelType: { type: String },
+        freight: { type: Number, default: 0 },
+        otherCharges: { type: Number, default: 0 },
+        totalAmount: { type: Number, default: 0 },
+        paymentMode: { type: String, default: 'Paid' },
+        status: { type: String, default: 'Booked' },
+        remarks: { type: String },
+    }],
+
+    // Legacy Parcel Details (kept for backward compatibility, now optional)
     fromCity: { type: String, required: true },
-    toCity: { type: String, required: true },
-    noOfParcels: { type: Number, required: true, default: 1 },
+    toCity: { type: String },
+    noOfParcels: { type: Number, default: 1 },
     weight: { type: String },
     description: { type: String },
     parcelType: { type: String }, // Box, Bag, Envelope, etc.

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 
-const LuggageTable = () => {
+const LuggageTable = ({ limit }) => {
     const [luggage, setLuggage] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const { user } = useAuth();
@@ -80,11 +80,74 @@ const LuggageTable = () => {
         }
     };
 
+    // ── RECENT MODE (dashboard) ──────────────────────────────────────────────
+    // Agar limit prop aaya hai toh sirf recent N entries dikhao, no filters
+    if (limit) {
+        const recentEntries = [...luggage]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, limit);
+
+        return (
+            <div className="overflow-x-auto">
+                <table className="min-w-full leading-normal">
+                    <thead>
+                        <tr>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">LR No</th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Sender</th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Receiver</th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Dest.</th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Agent</th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {recentEntries.length === 0 ? (
+                            <tr>
+                                <td colSpan="8" className="px-5 py-8 text-center text-gray-400">No recent entries found.</td>
+                            </tr>
+                        ) : (
+                            recentEntries.map((item) => (
+                                <tr key={item._id} className="hover:bg-gray-50">
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm">{new Date(item.date || item.createdAt).toLocaleDateString('en-GB')}</td>
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm font-medium">{item.manualLrNo || '-'}</td>
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm">{item.senderName}</td>
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm">{item.receiverName}</td>
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm">{item.station}</td>
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm">{item.agent || '-'}</td>
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm font-semibold text-green-700">₹{item.grandTotal}</td>
+                                    <td className="px-5 py-4 border-b border-gray-200 bg-white text-sm">
+                                        <button
+                                            onClick={() => window.open(`/print/${item._id}`, '_blank')}
+                                            className="text-white bg-blue-600 hover:bg-blue-700 font-bold py-1 px-3 rounded text-xs mr-2"
+                                        >
+                                            Print
+                                        </button>
+                                        {(user.role === 'admin' || user.role === 'branch') && (
+                                            <button
+                                                onClick={() => deleteLuggage(item._id)}
+                                                className="text-white bg-red-600 hover:bg-red-700 font-bold py-1 px-3 rounded text-xs"
+                                            >
+                                                Delete
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        );
+    }
+
+    // ── FULL MODE (add-record page) ──────────────────────────────────────────
+
     // Apply all filters
     const filteredLuggage = luggage.filter((item) => {
         const term = searchTerm.toLowerCase();
 
-        // Search filter
         const matchesSearch = !term || (
             (item.manualLrNo && item.manualLrNo.toLowerCase().includes(term)) ||
             (item.senderName && item.senderName.toLowerCase().includes(term)) ||
@@ -93,10 +156,8 @@ const LuggageTable = () => {
             (item.agent && item.agent.toLowerCase().includes(term))
         );
 
-        // Agent filter
         const matchesAgent = !agentFilter || item.agent === agentFilter;
 
-        // Date range filter
         const itemDate = new Date(item.date || item.createdAt).toISOString().split('T')[0];
         const matchesDateFrom = !dateFrom || itemDate >= dateFrom;
         const matchesDateTo = !dateTo || itemDate <= dateTo;
@@ -147,7 +208,6 @@ const LuggageTable = () => {
         toast.success(`Downloaded ${filename}`);
     };
 
-    // Clear all filters (resets to today)
     const clearFilters = () => {
         setAgentFilter('');
         setDateFrom(today);
@@ -159,6 +219,7 @@ const LuggageTable = () => {
 
     return (
         <div className="bg-white rounded shadow p-4">
+            <Toaster />
             {/* Search + Filters Row */}
             <div className="space-y-3 mb-4">
                 <div className="flex flex-col md:flex-row gap-3">
@@ -248,14 +309,14 @@ const LuggageTable = () => {
                             </tr>
                         ) : (
                             paginatedLuggage.map((item) => (
-                                <tr key={item._id}>
+                                <tr key={item._id} className="hover:bg-gray-50">
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{new Date(item.date || item.createdAt).toLocaleDateString('en-GB')}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.manualLrNo || '-'}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.senderName}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.receiverName}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.station}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.agent || '-'}</td>
-                                    <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">{item.grandTotal}</td>
+                                    <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm font-semibold text-green-700">₹{item.grandTotal}</td>
                                     <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
                                         <button
                                             onClick={() => window.open(`/print/${item._id}`, '_blank')}
@@ -291,15 +352,9 @@ const LuggageTable = () => {
                     </button>
                     <div className="flex items-center gap-1">
                         {Array.from({ length: totalPages }, (_, i) => i + 1)
-                            .filter(page => {
-                                // Show first, last, current, and pages around current
-                                return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
-                            })
+                            .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
                             .reduce((pages, page, i, arr) => {
-                                // Add ellipsis between non-consecutive pages
-                                if (i > 0 && page - arr[i - 1] > 1) {
-                                    pages.push('...');
-                                }
+                                if (i > 0 && page - arr[i - 1] > 1) pages.push('...');
                                 pages.push(page);
                                 return pages;
                             }, [])
