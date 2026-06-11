@@ -20,6 +20,7 @@ const getNavLinks = (role) => {
         { to: "/reports", label: "Reports" },
         { to: "/complaints", label: "Complaints" },
         { to: "/agent-parcel-requests", label: "Parcels Requests" },
+        { to: "/whatsapp", label: "WhatsApp" },
       ];
     case "branch":
       // Branch Panel: Parcel receive, manage agents/customers
@@ -30,6 +31,7 @@ const getNavLinks = (role) => {
         { to: "/users", label: "Agents" },
         { to: "/complaints", label: "Complaints" },
         { to: "/reports", label: "Reports" },
+        { to: "/whatsapp", label: "WhatsApp" },
       ];
     case "user":
       // Staff User: Basic entry work

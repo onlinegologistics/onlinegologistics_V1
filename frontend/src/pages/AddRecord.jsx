@@ -25,8 +25,8 @@ const emptyDest = {
 const AddRecord = () => {
     const { user } = useAuth();
     const [tab, setTab] = useState('regular');
-    
-    const [clientForm, setClientForm] = useState({ ...emptyClient });
+
+    const [clientForm, setClientForm] = useState({ ...emptyClient, fromCity: 'Pune' });
     const [destinations, setDestinations] = useState([{ ...emptyDest }]);
     
     const [records, setRecords] = useState([]);
@@ -110,30 +110,6 @@ const AddRecord = () => {
         }
     };
 
-    const sendWhatsAppMessage = (data) => {
-        if (!data.mobile) return;
-        
-        let message = `*Hello ${data.clientName},*\n\nYour parcel booking with *OnlineGo* is confirmed! 📦\n\n`;
-        message += `*Date:* ${new Date(data.date).toLocaleDateString('en-IN')}\n`;
-        message += `*From:* ${data.fromCity}\n\n`;
-        
-        message += `*Destinations:*\n`;
-        let grandTotal = 0;
-        data.destinations.forEach((d, i) => {
-            message += `${i+1}. *To:* ${d.toCity}\n`;
-            message += `   *Parcels:* ${d.noOfParcels} (${d.parcelType})\n`;
-            message += `   *Amount:* ₹${d.totalAmount} (${d.paymentMode})\n`;
-            grandTotal += parseFloat(d.totalAmount) || 0;
-        });
-
-        message += `\n*Grand Total:* ₹${grandTotal}\n\n`;
-        message += `Thank you for choosing us! 🚚`;
-
-        const encodedMessage = encodeURIComponent(message);
-        const whatsappUrl = `https://wa.me/91${data.mobile}?text=${encodedMessage}`;
-        window.open(whatsappUrl, '_blank');
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         
@@ -157,15 +133,8 @@ const AddRecord = () => {
 
             await axios.post('/api/parcel-records', payload, config);
             toast.success('Record added successfully! ✅');
-            
-            if (payload.mobile) {
-                const wantMsg = window.confirm('Record saved! Do you want to send a WhatsApp confirmation message to the client?');
-                if (wantMsg) {
-                    sendWhatsAppMessage(payload);
-                }
-            }
-            
-            setClientForm({ ...emptyClient });
+
+            setClientForm({ ...emptyClient, fromCity: 'Pune' });
             setDestinations([{ ...emptyDest }]);
             setShowForm(false);
             fetchRecords();
@@ -377,7 +346,7 @@ const AddRecord = () => {
                                 {loading ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Plus size={16} />}
                                 Add Record
                             </button>
-                            <button type="button" onClick={() => { setClientForm({ ...emptyClient }); setDestinations([{ ...emptyDest }]); }} className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 text-sm">Reset</button>
+                            <button type="button" onClick={() => { setClientForm({ ...emptyClient, fromCity: 'Pune' }); setDestinations([{ ...emptyDest }]); }} className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 text-sm">Reset</button>
                         </div>
                     </form>
                 </div>

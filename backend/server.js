@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const { startWhatsApp } = require('./services/whatsappService');
 
 dotenv.config();
 
@@ -66,6 +67,9 @@ app.use('/api/parcel-records', require('./routes/parcelRecordRoutes'));
 // User management routes - ADD THIS
 app.use('/api/users', require('./routes/userRoutes'));
 
+// WhatsApp routes
+app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({ message: 'Route not found' });
@@ -87,4 +91,5 @@ const PORT = process.env.PORT || 5001;
 
 app.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    startWhatsApp();
 });

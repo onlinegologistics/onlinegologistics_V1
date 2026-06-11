@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const ParcelRecord = require('../models/ParcelRecord');
 const { protect } = require('../middleware/authMiddleware');
+const { sendWhatsAppMessage } = require('../services/whatsappService');
+const { buildBookingConfirmationMessage } = require('../utils/whatsappMessage');
 
 // @desc    Download CSV of parcel records (MUST be before /:id routes)
 // @route   GET /api/parcel-records/download/csv
@@ -75,6 +77,16 @@ router.post('/', protect, async (req, res) => {
             ...req.body,
             createdBy: req.user._id,
         });
+
+        if (record.mobile) {
+            try {
+                const message = buildBookingConfirmationMessage(record);
+                await sendWhatsAppMessage(record.mobile, message);
+            } catch (waError) {
+                console.error('WhatsApp booking confirmation failed:', waError.message);
+            }
+        }
+
         res.status(201).json(record);
     } catch (error) {
         res.status(500).json({ message: error.message });

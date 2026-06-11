@@ -27,6 +27,7 @@ import AgentDashboard from './pages/AgentDashboard';
 import AgentParcelRequests from './pages/AgentParcelRequests';
 import AgentComplaints from './pages/AgentComplaints';
 import AddRecord from './pages/AddRecord';
+import WhatsApp from './pages/WhatsApp';
 
 function App() {
     return (
@@ -51,6 +52,7 @@ function App() {
                             <Route path="/reports" element={<Reports />} />
                             <Route path="/customers" element={<CustomerManagement />} />
                             <Route path="/add-record" element={<AddRecord />} />
+                            <Route path="/whatsapp" element={<WhatsApp />} />
                             <Route path="/parcel-requests" element={<ParcelRequests />} />
                             <Route path="/agent-parcel-requests" element={<AgentParcelRequests />} />
                             <Route path="/profile" element={<Profile />} />
