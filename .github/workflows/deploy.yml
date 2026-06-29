@@ -28,16 +28,6 @@ jobs:
           test -n "$VPS_USER" || { echo "::error::VPS_USER secret is missing"; exit 1; }
           test -n "$VPS_SSH_KEY" || { echo "::error::VPS_SSH_KEY secret is missing"; exit 1; }
 
-      - name: Check VPS SSH reachability
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
-        run: |
-          timeout 20 bash -c "</dev/tcp/$VPS_HOST/$VPS_PORT" || {
-            echo "::error::Cannot reach VPS SSH at $VPS_HOST:$VPS_PORT. Check VPS_HOST, VPS_PORT, server firewall, cloud security group, and sshd status."
-            exit 1
-          }
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
