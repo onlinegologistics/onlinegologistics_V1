@@ -40,6 +40,9 @@ jobs:
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
+        env:
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          BACKEND_ENV_B64: ${{ secrets.BACKEND_ENV_B64 }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -48,24 +51,99 @@ jobs:
           timeout: 60s
           command_timeout: 20m
           script_stop: true
+          envs: BACKEND_ENV,BACKEND_ENV_B64
           script: |
-            set -euo pipefail
+            set -eu
+
+            log() {
+              echo "---- $1 ----"
+            }
+
+            require_cmd() {
+              command -v "$1" >/dev/null 2>&1 || {
+                echo "Missing required command on VPS: $1"
+                exit 1
+              }
+            }
+
+            docker_cmd() {
+              if [ "${USE_SUDO_DOCKER:-0}" = "1" ]; then
+                sudo docker "$@"
+              else
+                docker "$@"
+              fi
+            }
+
+            compose_cmd() {
+              if docker_cmd compose version >/dev/null 2>&1; then
+                docker_cmd compose "$@"
+              elif command -v docker-compose >/dev/null 2>&1; then
+                if [ "${USE_SUDO_DOCKER:-0}" = "1" ]; then
+                  sudo docker-compose "$@"
+                else
+                  docker-compose "$@"
+                fi
+              else
+                echo "Docker Compose is not installed on VPS"
+                exit 1
+              fi
+            }
+
             PROJECT_DIR=/var/www/onlinegologistics/onlinegologistics
+
+            log "Checking VPS tools"
+            require_cmd git
+            require_cmd npm
+            require_cmd docker
+
+            if docker ps >/dev/null 2>&1; then
+              USE_SUDO_DOCKER=0
+            elif sudo -n docker ps >/dev/null 2>&1; then
+              USE_SUDO_DOCKER=1
+            else
+              echo "Docker is installed, but this user cannot run Docker. Add the VPS user to the docker group or allow passwordless sudo for docker."
+              exit 1
+            fi
+
+            log "Updating repository"
             if [ ! -d "$PROJECT_DIR/.git" ]; then
               rm -rf "$PROJECT_DIR"
               mkdir -p "$(dirname "$PROJECT_DIR")"
-              git clone https://github.com/onlinegologistics/onlinegologistics_V1.git $PROJECT_DIR
+              git clone https://github.com/onlinegologistics/onlinegologistics_V1.git "$PROJECT_DIR"
             else
               cd "$PROJECT_DIR"
               git fetch origin main
               git reset --hard origin/main
             fi
+
             cd "$PROJECT_DIR"
+
+            if [ -n "${BACKEND_ENV_B64:-}" ]; then
+              log "Writing backend/.env from BACKEND_ENV_B64 secret"
+              printf '%s' "$BACKEND_ENV_B64" | base64 -d > backend/.env
+            elif [ -n "${BACKEND_ENV:-}" ]; then
+              log "Writing backend/.env from BACKEND_ENV secret"
+              printf '%s\n' "$BACKEND_ENV" > backend/.env
+            fi
+
+            if [ ! -f backend/.env ]; then
+              echo "Missing backend/.env on VPS at $PROJECT_DIR/backend/.env"
+              echo "Add BACKEND_ENV_B64 or BACKEND_ENV in GitHub Actions secrets to deploy without manually entering the VPS."
+              exit 1
+            fi
+
+            log "Building frontend"
             cd frontend
-            npm install
+            npm install --no-audit --no-fund
             npm run build
             cd ..
-            docker compose down || true
-            sudo fuser -k 5003/tcp || true
-            docker compose up -d --build
+
+            log "Restarting Docker services"
+            compose_cmd down || true
+            if command -v fuser >/dev/null 2>&1; then
+              sudo -n fuser -k 5003/tcp || true
+            fi
+            compose_cmd up -d --build
+
+            log "Deployment complete"
             echo "Deployment complete!"
