@@ -130,7 +130,7 @@ jobs:
 
             docker_cmd() {
               if [ "${USE_SUDO_DOCKER:-0}" = "1" ]; then
-                sudo docker "$@"
+                sudo -n docker "$@"
               else
                 docker "$@"
               fi
@@ -186,10 +186,6 @@ jobs:
             log "Restarting Docker services"
             cd "$PROJECT_DIR"
             docker_cmd rm -f onlinegologistics_backend || true
-
-            if sudo -n true >/dev/null 2>&1 && command -v fuser >/dev/null 2>&1; then
-              sudo -n fuser -k 5003/tcp || true
-            fi
 
             log "Building backend image"
             docker_cmd build -t onlinegologistics_backend:latest ./backend
