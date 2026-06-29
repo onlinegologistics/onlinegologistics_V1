@@ -198,9 +198,10 @@ jobs:
 
             log "Restarting Docker services"
             cd "$PROJECT_DIR"
-            docker_cmd version
-            compose_cmd version
-            compose_cmd config
+            log "Docker diagnostics"
+            docker_cmd version 2>&1 || true
+            compose_cmd version 2>&1 || true
+            compose_cmd config 2>&1 || true
             compose_cmd down --remove-orphans || true
             if command -v fuser >/dev/null 2>&1; then
               sudo -n fuser -k 5003/tcp || true
