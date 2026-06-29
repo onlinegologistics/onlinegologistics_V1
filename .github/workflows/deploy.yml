@@ -119,10 +119,12 @@ jobs:
             }
 
             docker_cmd() {
+              seconds="$1"
+              shift
               if [ "${USE_SUDO_DOCKER:-0}" = "1" ]; then
-                sudo -n docker "$@"
+                timeout "$seconds" sudo -n docker "$@"
               else
-                docker "$@"
+                timeout "$seconds" docker "$@"
               fi
             }
 
@@ -133,12 +135,13 @@ jobs:
             log "Checking VPS tools"
             require_cmd tar
             require_cmd docker
+            require_cmd timeout
 
             [ -f "$ARCHIVE" ] || fail "Release archive not found at $ARCHIVE"
 
-            if docker ps >/dev/null 2>&1; then
+            if timeout 20 docker ps >/dev/null 2>&1; then
               USE_SUDO_DOCKER=0
-            elif sudo -n docker ps >/dev/null 2>&1; then
+            elif timeout 20 sudo -n docker ps >/dev/null 2>&1; then
               USE_SUDO_DOCKER=1
             else
               fail "Docker is installed, but this user cannot run Docker. Add the VPS user to the docker group or allow passwordless sudo for docker."
@@ -175,24 +178,35 @@ jobs:
 
             log "Restarting Docker services"
             cd "$PROJECT_DIR"
-            docker_cmd rm -f onlinegologistics_backend || true
 
             log "Building backend image"
-            docker_cmd build -t onlinegologistics_backend:latest ./backend
+            if docker_cmd 600 build -t onlinegologistics_backend:latest ./backend 2>&1; then
+              :
+            else
+              fail "Docker build failed or timed out on VPS"
+            fi
+
+            log "Replacing backend container"
+            docker_cmd 30 stop --time 10 onlinegologistics_backend 2>&1 || true
+            docker_cmd 30 rm onlinegologistics_backend 2>&1 || true
 
             log "Starting backend container"
-            docker_cmd run -d \
+            if docker_cmd 60 run -d \
               --name onlinegologistics_backend \
               --restart always \
               -p 5003:5003 \
               --env-file "$PROJECT_DIR/backend/.env" \
               -v "$PROJECT_DIR/wa-auth:/app/wa-auth" \
-              onlinegologistics_backend:latest
+              onlinegologistics_backend:latest 2>&1; then
+              :
+            else
+              fail "Docker container failed to start on VPS"
+            fi
 
             sleep 5
-            docker_cmd ps --filter "name=onlinegologistics_backend"
-            if ! docker_cmd ps --filter "name=onlinegologistics_backend" --filter "status=running" --format "{{.Names}}" | grep -qx "onlinegologistics_backend"; then
-              docker_cmd logs --tail=160 onlinegologistics_backend || true
+            docker_cmd 30 ps --filter "name=onlinegologistics_backend" 2>&1 || true
+            if ! docker_cmd 30 ps --filter "name=onlinegologistics_backend" --filter "status=running" --format "{{.Names}}" | grep -qx "onlinegologistics_backend"; then
+              docker_cmd 30 logs --tail=160 onlinegologistics_backend 2>&1 || true
               fail "Backend container is not running after Docker start"
             fi
 
