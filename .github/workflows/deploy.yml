@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Validate deployment secrets
         env:
@@ -38,7 +38,44 @@ jobs:
             exit 1
           }
 
-      - name: Deploy to VPS
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Create release package
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='release.tar.gz' \
+            --exclude='backend/.env' \
+            --exclude='backend/database' \
+            --exclude='backend/node_modules' \
+            --exclude='backend/wa-auth' \
+            --exclude='frontend/node_modules' \
+            --exclude='wa-auth' \
+            -czf release.tar.gz .
+
+      - name: Upload release to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          source: release.tar.gz
+          target: /tmp/onlinegologistics-deploy
+          overwrite: true
+          timeout: 60s
+          command_timeout: 10m
+
+      - name: Deploy uploaded release
         uses: appleboy/ssh-action@v1.0.0
         env:
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
@@ -59,11 +96,13 @@ jobs:
               echo "---- $1 ----"
             }
 
+            fail() {
+              echo "::error::$1"
+              exit 1
+            }
+
             require_cmd() {
-              command -v "$1" >/dev/null 2>&1 || {
-                echo "Missing required command on VPS: $1"
-                exit 1
-              }
+              command -v "$1" >/dev/null 2>&1 || fail "Missing required command on VPS: $1"
             }
 
             docker_cmd() {
@@ -84,61 +123,58 @@ jobs:
                   docker-compose "$@"
                 fi
               else
-                echo "Docker Compose is not installed on VPS"
-                exit 1
+                fail "Docker Compose is not installed on VPS"
               fi
             }
 
             PROJECT_DIR=/var/www/onlinegologistics/onlinegologistics
+            ARCHIVE=/tmp/onlinegologistics-deploy/release.tar.gz
+            DEPLOY_USER=$(id -un)
 
             log "Checking VPS tools"
-            require_cmd git
-            require_cmd npm
+            require_cmd tar
             require_cmd docker
+
+            [ -f "$ARCHIVE" ] || fail "Release archive not found at $ARCHIVE"
 
             if docker ps >/dev/null 2>&1; then
               USE_SUDO_DOCKER=0
             elif sudo -n docker ps >/dev/null 2>&1; then
               USE_SUDO_DOCKER=1
             else
-              echo "Docker is installed, but this user cannot run Docker. Add the VPS user to the docker group or allow passwordless sudo for docker."
-              exit 1
+              fail "Docker is installed, but this user cannot run Docker. Add the VPS user to the docker group or allow passwordless sudo for docker."
             fi
 
-            log "Updating repository"
-            if [ ! -d "$PROJECT_DIR/.git" ]; then
-              rm -rf "$PROJECT_DIR"
-              mkdir -p "$(dirname "$PROJECT_DIR")"
-              git clone https://github.com/onlinegologistics/onlinegologistics_V1.git "$PROJECT_DIR"
-            else
-              cd "$PROJECT_DIR"
-              git fetch origin main
-              git reset --hard origin/main
+            log "Preparing project directory"
+            if ! mkdir -p "$PROJECT_DIR" 2>/dev/null; then
+              sudo -n mkdir -p "$PROJECT_DIR" || fail "Cannot create $PROJECT_DIR. Give the VPS user write access or passwordless sudo."
             fi
 
-            cd "$PROJECT_DIR"
+            if sudo -n true >/dev/null 2>&1; then
+              sudo -n chown -R "$DEPLOY_USER:$DEPLOY_USER" "$PROJECT_DIR" || true
+            fi
+
+            [ -w "$PROJECT_DIR" ] || fail "VPS user cannot write to $PROJECT_DIR"
+
+            log "Extracting release"
+            tar -xzf "$ARCHIVE" -C "$PROJECT_DIR"
 
             if [ -n "${BACKEND_ENV_B64:-}" ]; then
               log "Writing backend/.env from BACKEND_ENV_B64 secret"
-              printf '%s' "$BACKEND_ENV_B64" | base64 -d > backend/.env
+              printf '%s' "$BACKEND_ENV_B64" | base64 -d > "$PROJECT_DIR/backend/.env"
             elif [ -n "${BACKEND_ENV:-}" ]; then
               log "Writing backend/.env from BACKEND_ENV secret"
-              printf '%s\n' "$BACKEND_ENV" > backend/.env
+              printf '%s\n' "$BACKEND_ENV" > "$PROJECT_DIR/backend/.env"
             fi
 
-            if [ ! -f backend/.env ]; then
-              echo "Missing backend/.env on VPS at $PROJECT_DIR/backend/.env"
-              echo "Add BACKEND_ENV_B64 or BACKEND_ENV in GitHub Actions secrets to deploy without manually entering the VPS."
-              exit 1
+            if [ ! -f "$PROJECT_DIR/backend/.env" ]; then
+              fail "Missing backend/.env. Add BACKEND_ENV_B64 or BACKEND_ENV in GitHub Actions secrets to deploy without manually entering the VPS."
             fi
 
-            log "Building frontend"
-            cd frontend
-            npm install --no-audit --no-fund
-            npm run build
-            cd ..
+            chmod 600 "$PROJECT_DIR/backend/.env" || true
 
             log "Restarting Docker services"
+            cd "$PROJECT_DIR"
             compose_cmd down || true
             if command -v fuser >/dev/null 2>&1; then
               sudo -n fuser -k 5003/tcp || true
