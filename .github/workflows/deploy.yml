@@ -89,7 +89,7 @@ jobs:
             "$VPS_USER@$VPS_HOST:/tmp/onlinegologistics-deploy/release.tar.gz"
 
       - name: Deploy uploaded release
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@v1.2.2
         env:
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
           BACKEND_ENV_B64: ${{ secrets.BACKEND_ENV_B64 }}
@@ -100,7 +100,6 @@ jobs:
           port: ${{ secrets.VPS_PORT || '22' }}
           timeout: 60s
           command_timeout: 20m
-          script_stop: true
           envs: BACKEND_ENV,BACKEND_ENV_B64
           script: |
             set -eu
