@@ -51,6 +51,7 @@ jobs:
 
       - name: Create release package
         run: |
+          rm -f release.tar.gz "$RUNNER_TEMP/release.tar.gz"
           tar \
             --exclude='.git' \
             --exclude='release.tar.gz' \
@@ -60,7 +61,8 @@ jobs:
             --exclude='backend/wa-auth' \
             --exclude='frontend/node_modules' \
             --exclude='wa-auth' \
-            -czf release.tar.gz .
+            -czf "$RUNNER_TEMP/release.tar.gz" .
+          cp "$RUNNER_TEMP/release.tar.gz" release.tar.gz
 
       - name: Upload release to VPS
         uses: appleboy/scp-action@v0.1.7
