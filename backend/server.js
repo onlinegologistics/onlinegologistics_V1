@@ -99,5 +99,7 @@ const PORT = process.env.PORT || 5003;
 
 app.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-    startWhatsApp();
+    startWhatsApp().catch((error) => {
+        console.error('Unable to start WhatsApp:', error.message);
+    });
 });
