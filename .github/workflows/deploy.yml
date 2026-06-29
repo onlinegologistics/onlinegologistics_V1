@@ -9,10 +9,34 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: true
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+
+      - name: Validate deployment secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          test -n "$VPS_HOST" || { echo "::error::VPS_HOST secret is missing"; exit 1; }
+          test -n "$VPS_USER" || { echo "::error::VPS_USER secret is missing"; exit 1; }
+          test -n "$VPS_SSH_KEY" || { echo "::error::VPS_SSH_KEY secret is missing"; exit 1; }
+
+      - name: Check VPS SSH reachability
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+        run: |
+          timeout 20 bash -c "</dev/tcp/$VPS_HOST/$VPS_PORT" || {
+            echo "::error::Cannot reach VPS SSH at $VPS_HOST:$VPS_PORT. Check VPS_HOST, VPS_PORT, server firewall, cloud security group, and sshd status."
+            exit 1
+          }
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
@@ -20,23 +44,28 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          timeout: 60s
+          command_timeout: 20m
+          script_stop: true
           script: |
-            set -e
+            set -euo pipefail
             PROJECT_DIR=/var/www/onlinegologistics/onlinegologistics
             if [ ! -d "$PROJECT_DIR/.git" ]; then
-              rm -rf $PROJECT_DIR
+              rm -rf "$PROJECT_DIR"
+              mkdir -p "$(dirname "$PROJECT_DIR")"
               git clone https://github.com/onlinegologistics/onlinegologistics_V1.git $PROJECT_DIR
             else
-              cd $PROJECT_DIR
+              cd "$PROJECT_DIR"
               git fetch origin main
               git reset --hard origin/main
             fi
-            cd $PROJECT_DIR
+            cd "$PROJECT_DIR"
             cd frontend
             npm install
             npm run build
             cd ..
             docker compose down || true
-            sudo fuser -k 5001/tcp || true
+            sudo fuser -k 5003/tcp || true
             docker compose up -d --build
             echo "Deployment complete!"

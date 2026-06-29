@@ -1,6 +1,6 @@
-const buildBookingConfirmationMessage = (record) => {
-    return `Thank you for contacting *Online Go Logistics*! \u{1F69A}
-How can we assist you today? \u{1F60A}`;
+const buildBookingConfirmationMessage = () => {
+    return `Thank you for contacting 📦 Online Go Logistics! 🚚
+For support, plz call 📞 92090 61234.`;
 };
 
 module.exports = { buildBookingConfirmationMessage };
