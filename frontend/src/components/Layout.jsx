@@ -32,6 +32,7 @@ const getNavLinks = (role) => {
         { to: "/complaints", label: "Complaints" },
         { to: "/reports", label: "Reports" },
         { to: "/whatsapp", label: "WhatsApp" },
+        { to: "/branch/mobile-users", label: "Mobile Users" },
       ];
     case "user":
       // Staff User: Basic entry work

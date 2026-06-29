@@ -1,0 +1,428 @@
+const MobileUser = require('../models/MobileUser');
+const MobileUserEnquiry = require('../models/MobileUserEnquiry');
+const MobileUserComplaint = require('../models/MobileUserComplaint');
+const ParcelRequest = require('../models/ParcelRequest');
+const MobileShipment = require('../models/MobileShipment');
+const asyncHandler = require('express-async-handler');
+
+// Helper to seed mock data if database is empty
+const seedMockDataIfEmpty = async (branchId) => {
+    const userCount = await MobileUser.countDocuments();
+    if (userCount === 0) {
+        // Seed users
+        const users = [
+            {
+                name: 'Rahul Sharma',
+                email: 'rahul.sharma@example.com',
+                username: 'rahul_sharma',
+                mobile: '9876543210',
+                altMobile: '9876543211',
+                address: 'Flat 402, Sunrise Apartments, Sector 15, Rohini, Delhi',
+                isActive: true,
+                branch: branchId
+            },
+            {
+                name: 'Priya Patel',
+                email: 'priya.patel@example.com',
+                username: 'priya_patel',
+                mobile: '8765432109',
+                altMobile: '',
+                address: '12, Shanti Nagar, Near Mall Road, Indore, MP',
+                isActive: true,
+                branch: branchId
+            },
+            {
+                name: 'Amit Verma',
+                email: 'amit.verma@example.com',
+                username: 'amit_verma',
+                mobile: '7654321098',
+                altMobile: '7654321099',
+                address: 'Line 3, Hazratganj, Lucknow, UP',
+                isActive: false,
+                branch: branchId
+            },
+            {
+                name: 'Sneha Reddy',
+                email: 'sneha.reddy@example.com',
+                username: 'sneha_reddy',
+                mobile: '6543210987',
+                altMobile: '',
+                address: 'Plot 45, Jubilee Hills, Hyderabad, Telangana',
+                isActive: true,
+                branch: branchId
+            }
+        ];
+        const createdUsers = await MobileUser.insertMany(users);
+
+        // Seed some shipments (ParcelRequests) for these users
+        const parcelRequests = [
+            {
+                customer: branchId, // fallback link
+                pickupAddress: 'Flat 402, Sunrise Apartments, Sector 15, Rohini, Delhi',
+                deliveryAddress: '55, Park Street, Kolkata, West Bengal',
+                pickupDate: new Date(),
+                packageDescription: 'Electronics & Accessories',
+                weight: 5.5,
+                quantity: 2,
+                status: 'In Transit',
+                remarks: 'Fragile items, handle with care'
+            },
+            {
+                customer: branchId,
+                pickupAddress: '12, Shanti Nagar, Near Mall Road, Indore, MP',
+                deliveryAddress: 'G-9, Bandra Kurla Complex, Mumbai, Maharashtra',
+                pickupDate: new Date(),
+                packageDescription: 'Documents and Clothes',
+                weight: 12.0,
+                quantity: 1,
+                status: 'Delivered',
+                remarks: 'Deliver to reception'
+            }
+        ];
+        await ParcelRequest.insertMany(parcelRequests);
+
+        // Seed Enquiries
+        const enquiries = [
+            {
+                user: createdUsers[0]._id,
+                branch: branchId,
+                name: 'Rahul Sharma',
+                mobile: '9876543210',
+                email: 'rahul.sharma@example.com',
+                enquiryType: 'Pricing',
+                subject: 'Corporate Rates for Bulk Shipments',
+                message: 'I want to know if there is any discount for sending 20+ packages per month from Delhi to Mumbai.',
+                status: 'Open',
+                adminResponse: ''
+            },
+            {
+                user: createdUsers[1]._id,
+                branch: branchId,
+                name: 'Priya Patel',
+                mobile: '8765432109',
+                email: 'priya.patel@example.com',
+                enquiryType: 'Serviceability',
+                subject: 'Delivery to remote areas in UK',
+                message: 'Do you deliver to remote areas of Uttarakhand, specifically near Joshimath?',
+                status: 'Resolved',
+                adminResponse: 'Yes, we service Joshimath via our regional partner networks. Delivery may take 5-7 working days.'
+            }
+        ];
+        await MobileUserEnquiry.insertMany(enquiries);
+
+        // Seed Complaints
+        const complaints = [
+            {
+                user: createdUsers[0]._id,
+                branch: branchId,
+                contactName: 'Rahul Sharma',
+                contactMobile: '9876543210',
+                receiptNo: 'REC-2026-9901',
+                subject: 'Delayed Pickup Delhi Branch',
+                description: 'The pickup was scheduled for yesterday 2 PM but no agent has called or arrived yet.',
+                status: 'In Progress',
+                priority: 'High',
+                adminResponse: 'Assigning to Delhi pickup team immediately.'
+            },
+            {
+                user: createdUsers[2]._id,
+                branch: branchId,
+                contactName: 'Amit Verma',
+                contactMobile: '7654321098',
+                receiptNo: 'REC-2026-8842',
+                subject: 'Damaged outer box',
+                description: 'The box received today was torn at the corner, although the inside items are safe.',
+                status: 'Closed',
+                priority: 'Medium',
+                adminResponse: 'Apologies for the inconvenience. We have noted this and warned the loading team.'
+            }
+        ];
+        await MobileUserComplaint.insertMany(complaints);
+    }
+};
+
+const getMobileUsers = asyncHandler(async (req, res) => {
+    // Step 1: Delete all shipment records with missing or empty deliveryAddress
+    const deleteResult = await MobileShipment.deleteMany({
+        $or: [
+            { deliveryAddress: { $exists: false } },
+            { deliveryAddress: null },
+            { deliveryAddress: '' }
+        ]
+    });
+    if (deleteResult.deletedCount > 0) {
+        console.log(`[getMobileUsers] Cleaned up ${deleteResult.deletedCount} shipment(s) with empty deliveryAddress`);
+    }
+
+    // Step 2: Query only shipments that have a valid deliveryAddress
+    const shipments = await MobileShipment.find({
+        deliveryAddress: { $exists: true, $ne: null, $ne: '' }
+    }).sort({ createdAt: -1 });
+
+    // Extract unique users by mobileNumber
+    const uniqueUsersMap = new Map();
+    shipments.forEach(s => {
+        const mobile = s.mobileNumber || s.mobile || 'N/A';
+        if (mobile !== 'N/A' && !uniqueUsersMap.has(mobile)) {
+            uniqueUsersMap.set(mobile, {
+                _id: s._id,
+                name: s.customerName || 'N/A',
+                email: s.customerName ? `${s.customerName.toLowerCase().replace(/\s/g, '')}@example.com` : 'N/A',
+                mobile: mobile,
+                altMobile: '',
+                address: s.pickupAddress || 'N/A',
+                isActive: s.isActive !== undefined ? s.isActive : true,
+                createdAt: s.createdAt || new Date(),
+                latestShipment: {
+                    trackingId: s._id.toString(),
+                    lrNumber: s.trackingId || s.parcelRequestId || s._id.toString().substring(18).toUpperCase(),
+                    customerName: s.customerName || 'N/A',
+                    mobileNumber: mobile,
+                    pickupCity: s.pickupCity || 'Pune',
+                    pickupAddress: s.pickupAddress || 'N/A',
+                    deliveryCity: s.deliveryCity || 'Latur',
+                    deliveryAddress: s.deliveryAddress,
+                    parcelType: s.parcelType || s.packageDescription || 'Package',
+                    transportType: s.transportType || 'Road',
+                    weight: s.weight || 0,
+                    quantity: s.quantity || 1,
+                    expectedDeliveryDate: s.expectedDeliveryDate,
+                    currentShipmentStatus: s.currentStatus || 'Pending',
+                    currentBranch: s.currentBranch || req.user.name,
+                    currentLocation: s.currentLocation || s.pickupAddress || 'N/A'
+                }
+            });
+        }
+    });
+
+    const usersList = Array.from(uniqueUsersMap.values());
+    res.json(usersList);
+});
+
+// @desc    Update mobile user isActive status
+// @route   PUT /api/mobile-users/:id
+// @access  Private (Branch/Admin)
+const updateMobileUser = asyncHandler(async (req, res) => {
+    const { isActive } = req.body;
+    
+    // Find one shipment record to get the customer's mobile number
+    const shipmentRecord = await MobileShipment.findById(req.params.id);
+
+    if (!shipmentRecord) {
+        res.status(404);
+        throw new Error('Customer shipment record not found');
+    }
+
+    const mobile = shipmentRecord.mobileNumber;
+
+    // Update isActive for all shipments under this mobile number in the mobileusers collection
+    await MobileShipment.updateMany({ mobileNumber: mobile }, { isActive });
+
+    res.json({ _id: req.params.id, isActive });
+});
+
+// @desc    Get all enquiries
+// @route   GET /api/mobile-user-enquiries
+// @access  Private (Branch/Admin)
+const getEnquiries = asyncHandler(async (req, res) => {
+    const enquiries = await MobileUserEnquiry.find({}).sort({ createdAt: -1 });
+
+    const enrichedEnquiries = await Promise.all(enquiries.map(async (e) => {
+        const eObj = e.toObject();
+        // Look up customer details in 'mobileusers' shipment collection using reference user ID or customer name
+        const customerShipment = await MobileShipment.findOne({
+            $or: [
+                { _id: e.user },
+                { customer: e.user },
+                { customerName: e.name }
+            ]
+        });
+
+        if (customerShipment) {
+            eObj.mobile = customerShipment.mobileNumber || e.mobile || 'N/A';
+            eObj.email = customerShipment.email || e.email || (customerShipment.customerName ? `${customerShipment.customerName.toLowerCase().replace(/\s/g, '')}@example.com` : 'N/A');
+            eObj.name = customerShipment.customerName || e.name;
+        } else {
+            eObj.mobile = e.mobile || 'N/A';
+            eObj.email = e.email || 'N/A';
+        }
+        return eObj;
+    }));
+
+    res.json({ enquiries: enrichedEnquiries });
+});
+
+// @desc    Update enquiry status and response
+// @route   PUT /api/mobile-user-enquiries/:id
+// @access  Private (Branch/Admin)
+const updateEnquiry = asyncHandler(async (req, res) => {
+    const { status, adminResponse } = req.body;
+    const enquiry = await MobileUserEnquiry.findById(req.params.id);
+
+    if (!enquiry) {
+        res.status(404);
+        throw new Error('Enquiry not found');
+    }
+
+    enquiry.status = status;
+    enquiry.adminResponse = adminResponse;
+    await enquiry.save();
+
+    res.json(enquiry);
+});
+
+// @desc    Get all complaints
+// @route   GET /api/mobile-user-complaints
+// @access  Private (Branch/Admin)
+const getComplaints = asyncHandler(async (req, res) => {
+    const complaints = await MobileUserComplaint.find({}).sort({ createdAt: -1 });
+
+    const enrichedComplaints = await Promise.all(complaints.map(async (c) => {
+        const cObj = c.toObject();
+        // Look up customer details in 'mobileusers' shipment collection using reference user ID or customer name
+        const customerShipment = await MobileShipment.findOne({
+            $or: [
+                { _id: c.user },
+                { customer: c.user },
+                { customerName: c.name }
+            ]
+        });
+
+        if (customerShipment) {
+            cObj.contactMobile = customerShipment.mobileNumber || c.contactMobile || 'N/A';
+            cObj.contactEmail = customerShipment.email || c.contactEmail || (customerShipment.customerName ? `${customerShipment.customerName.toLowerCase().replace(/\s/g, '')}@example.com` : 'N/A');
+            cObj.contactName = customerShipment.customerName || c.contactName || c.name;
+        } else {
+            cObj.contactMobile = c.contactMobile || 'N/A';
+            cObj.contactEmail = c.contactEmail || 'N/A';
+            cObj.contactName = c.contactName || c.name || 'N/A';
+        }
+        return cObj;
+    }));
+
+    res.json({ complaints: enrichedComplaints });
+});
+
+// @desc    Update complaint status and response
+// @route   PUT /api/mobile-user-complaints/:id
+// @access  Private (Branch/Admin)
+const updateComplaint = asyncHandler(async (req, res) => {
+    const { status, adminResponse } = req.body;
+    const complaint = await MobileUserComplaint.findById(req.params.id);
+
+    if (!complaint) {
+        res.status(404);
+        throw new Error('Complaint not found');
+    }
+
+    complaint.status = status;
+    complaint.adminResponse = adminResponse;
+    await complaint.save();
+
+    res.json(complaint);
+});
+
+const updateMobileShipment = asyncHandler(async (req, res) => {
+    const mongoose = require('mongoose');
+    const query = {};
+    if (mongoose.isValidObjectId(req.params.id)) {
+        query.$or = [
+            { _id: req.params.id },
+            { trackingId: req.params.id },
+            { customer: req.params.id },
+            { parcelRequestId: req.params.id }
+        ];
+    } else {
+        query.trackingId = req.params.id;
+    }
+
+    const shipment = await MobileShipment.findOne(query);
+
+    if (!shipment) {
+        res.status(404);
+        throw new Error('Shipment not found');
+    }
+
+    const {
+        currentStatus,
+        currentLocation,
+        currentBranch,
+        remarks,
+        expectedDeliveryDate,
+        assignedStaff,
+        transportType,
+        weight,
+        quantity,
+        parcelType
+    } = req.body;
+
+    const oldStatus = shipment.currentStatus;
+
+    if (currentStatus !== undefined) shipment.currentStatus = currentStatus;
+    if (currentLocation !== undefined) shipment.currentLocation = currentLocation;
+    if (currentBranch !== undefined) shipment.currentBranch = currentBranch;
+    if (remarks !== undefined) shipment.remarks = remarks;
+    if (expectedDeliveryDate !== undefined) shipment.expectedDeliveryDate = expectedDeliveryDate;
+    if (assignedStaff !== undefined) shipment.assignedStaff = assignedStaff;
+    if (transportType !== undefined) shipment.transportType = transportType;
+    if (weight !== undefined) shipment.weight = weight;
+    if (quantity !== undefined) shipment.quantity = quantity;
+    if (parcelType !== undefined) shipment.parcelType = parcelType;
+
+    // If status changed, push a new checkpoint to trackingHistory
+    if (currentStatus !== undefined && currentStatus !== oldStatus) {
+        if (!shipment.trackingHistory) {
+            shipment.trackingHistory = [];
+        }
+        shipment.trackingHistory.push({
+            status: currentStatus,
+            location: currentLocation || shipment.currentLocation || 'Branch Hub',
+            branchName: currentBranch || shipment.currentBranch || req.user.name,
+            remark: remarks || `Shipment status updated to ${currentStatus}`,
+            updatedBy: req.user.name,
+            dateTime: new Date()
+        });
+    }
+
+    await shipment.save();
+
+    res.json(shipment);
+});
+
+// @desc    Get mobile user shipment details by ID
+// @route   GET /api/mobile-users/shipments/:id
+// @access  Private (Branch/Admin)
+const getMobileShipmentById = asyncHandler(async (req, res) => {
+    const mongoose = require('mongoose');
+    const query = {};
+    if (mongoose.isValidObjectId(req.params.id)) {
+        query.$or = [
+            { _id: req.params.id },
+            { trackingId: req.params.id },
+            { customer: req.params.id },
+            { parcelRequestId: req.params.id }
+        ];
+    } else {
+        query.$or = [{ trackingId: req.params.id }, { parcelRequestId: req.params.id }];
+    }
+
+    const shipment = await MobileShipment.findOne(query);
+
+    if (!shipment) {
+        res.status(404);
+        throw new Error('Shipment not found');
+    }
+
+    res.json(shipment);
+});
+
+module.exports = {
+    getMobileUsers,
+    updateMobileUser,
+    getEnquiries,
+    updateEnquiry,
+    getComplaints,
+    updateComplaint,
+    updateMobileShipment,
+    getMobileShipmentById
+};

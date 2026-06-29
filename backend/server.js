@@ -16,7 +16,12 @@ app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+        if (
+            allowedOrigins.indexOf(origin) !== -1 || 
+            process.env.NODE_ENV === 'development' ||
+            origin.startsWith('http://localhost:') ||
+            origin.startsWith('http://127.0.0.1:')
+        ) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -69,6 +74,9 @@ app.use('/api/users', require('./routes/userRoutes'));
 
 // WhatsApp routes
 app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
+
+// Mobile Users routes
+app.use('/api', require('./routes/branchMobileUsersRoutes'));
 
 // 404 handler
 app.use((req, res) => {

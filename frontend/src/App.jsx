@@ -28,6 +28,8 @@ import AgentParcelRequests from './pages/AgentParcelRequests';
 import AgentComplaints from './pages/AgentComplaints';
 import AddRecord from './pages/AddRecord';
 import WhatsApp from './pages/WhatsApp';
+import MobileUsers from './pages/branch/MobileUsers';
+import MobileShipmentManage from './pages/branch/MobileShipmentManage';
 
 function App() {
     return (
@@ -55,6 +57,8 @@ function App() {
                             <Route path="/whatsapp" element={<WhatsApp />} />
                             <Route path="/parcel-requests" element={<ParcelRequests />} />
                             <Route path="/agent-parcel-requests" element={<AgentParcelRequests />} />
+                            <Route path="/branch/mobile-users" element={<MobileUsers />} />
+                            <Route path="/branch/shipments/:id/manage" element={<MobileShipmentManage />} />
                             <Route path="/profile" element={<Profile />} />
                         </Route>
                     </Route>
