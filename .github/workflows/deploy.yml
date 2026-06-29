@@ -146,7 +146,7 @@ jobs:
                   docker-compose "$@"
                 fi
               else
-                fail "Docker Compose is not installed on VPS"
+                return 127
               fi
             }
 
@@ -195,6 +195,7 @@ jobs:
             fi
 
             chmod 600 "$PROJECT_DIR/backend/.env" || true
+            mkdir -p "$PROJECT_DIR/wa-auth"
 
             log "Restarting Docker services"
             cd "$PROJECT_DIR"
@@ -202,25 +203,48 @@ jobs:
             docker_cmd version 2>&1 || true
             compose_cmd version 2>&1 || true
             compose_cmd config 2>&1 || true
-            compose_cmd down --remove-orphans || true
             if command -v fuser >/dev/null 2>&1; then
               sudo -n fuser -k 5003/tcp || true
             fi
-            if compose_cmd up -d --build; then
-              :
+
+            if compose_cmd version >/dev/null 2>&1; then
+              log "Deploying with Docker Compose"
+              compose_cmd down --remove-orphans || true
+              if compose_cmd up -d --build; then
+                :
+              else
+                status=$?
+                echo "::error::Docker Compose failed while rebuilding/restarting services"
+                compose_cmd ps || true
+                compose_cmd logs --tail=160 || true
+                exit "$status"
+              fi
             else
-              status=$?
-              echo "::error::Docker Compose failed while rebuilding/restarting services"
-              compose_cmd ps || true
-              compose_cmd logs --tail=160 || true
-              exit "$status"
+              log "Docker Compose is not installed; deploying with docker build/run"
+              docker_cmd rm -f onlinegologistics_backend || true
+              docker_cmd build -t onlinegologistics_backend:latest ./backend
+              docker_cmd run -d \
+                --name onlinegologistics_backend \
+                --restart always \
+                -p 5003:5003 \
+                --env-file "$PROJECT_DIR/backend/.env" \
+                -v "$PROJECT_DIR/wa-auth:/app/wa-auth" \
+                onlinegologistics_backend:latest
             fi
 
             sleep 5
-            compose_cmd ps
+            if compose_cmd version >/dev/null 2>&1; then
+              compose_cmd ps
+            else
+              docker_cmd ps --filter "name=onlinegologistics_backend"
+            fi
             if ! docker_cmd ps --filter "name=onlinegologistics_backend" --filter "status=running" --format "{{.Names}}" | grep -qx "onlinegologistics_backend"; then
-              compose_cmd logs --tail=160 backend || true
-              fail "Backend container is not running after Docker Compose start"
+              if compose_cmd version >/dev/null 2>&1; then
+                compose_cmd logs --tail=160 backend || true
+              else
+                docker_cmd logs --tail=160 onlinegologistics_backend || true
+              fi
+              fail "Backend container is not running after Docker start"
             fi
 
             log "Deployment complete"
