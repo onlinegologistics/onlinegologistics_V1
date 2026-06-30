@@ -343,8 +343,8 @@ const AddRecord = () => {
                         <div className="flex gap-3 pt-3 border-t">
                             <button type="submit" disabled={loading}
                                 className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 shadow-lg disabled:opacity-50 text-sm">
-                                {loading ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Plus size={16} />}
-                                Add Record
+                                {loading ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : null}
+                                Submit
                             </button>
                             <button type="button" onClick={() => { setClientForm({ ...emptyClient, fromCity: 'Pune' }); setDestinations([{ ...emptyDest }]); }} className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 text-sm">Reset</button>
                         </div>
