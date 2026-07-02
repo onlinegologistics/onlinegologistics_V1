@@ -16,25 +16,6 @@ const mobileUserSchema = mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Delete hooks to trace unauthorized deletions
-mobileUserSchema.pre('deleteOne', { document: true, query: false }, function (next) {
-    console.error('[MobileUser] deleteOne document hook triggered on:', this._id);
-    console.error(new Error().stack);
-    next();
-});
-
-mobileUserSchema.pre('findOneAndDelete', function (next) {
-    console.error('[MobileUser] findOneAndDelete hook triggered. Filter:', this.getFilter());
-    console.error(new Error().stack);
-    next();
-});
-
-mobileUserSchema.pre('deleteMany', function (next) {
-    console.error('[MobileUser] deleteMany hook triggered. Filter:', this.getFilter());
-    console.error(new Error().stack);
-    next();
-});
-
 // Explicitly use the 'mobileusers' collection as requested
 const MobileUser = mongoose.model('MobileUser', mobileUserSchema, 'mobileusers');
 module.exports = MobileUser;

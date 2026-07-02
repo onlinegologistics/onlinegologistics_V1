@@ -32,23 +32,6 @@ app.use(cors({
 
 app.use(express.json());
 
-// API Logger Middleware
-app.use((req, res, next) => {
-    console.log(`\n[API LOGGER] ${req.method} ${req.originalUrl}`);
-    console.log(`[STATUS] Pending...`);
-    if (Object.keys(req.body).length) console.log(`[BODY]`, req.body);
-    if (Object.keys(req.query).length) console.log(`[QUERY]`, req.query);
-    if (Object.keys(req.params).length) console.log(`[PARAMS]`, req.params);
-    
-    // Override end to capture status code
-    const originalEnd = res.end;
-    res.end = function(chunk, encoding) {
-        res.end = originalEnd;
-        res.end(chunk, encoding);
-        console.log(`[API LOGGER] ${req.method} ${req.originalUrl} - Completed with status: ${res.statusCode}`);
-    };
-    next();
-});
 app.get('/', (req, res) => {
     res.send('Luggage Billing API is running');
 });
