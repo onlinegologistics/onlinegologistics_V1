@@ -98,7 +98,7 @@ const MobileUsers = () => {
   // Derived statistics
   const stats = useMemo(() => {
     const totalUsers = users.length;
-    const activeShipments = users.length;
+    const activeShipments = users.filter(u => u.latestShipment).length;
     const openEnquiries = enquiries.filter(
       (e) => e.status === "Open" || e.status === "In Progress",
     ).length;
@@ -641,7 +641,7 @@ const MobileUsers = () => {
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "shipments" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
           >
-            {users.length}
+            {stats.activeShipments}
           </span>
         </button>
         <button

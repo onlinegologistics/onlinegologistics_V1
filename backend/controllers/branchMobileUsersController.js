@@ -142,41 +142,33 @@ const seedMockDataIfEmpty = async (branchId) => {
 };
 
 const getMobileUsers = asyncHandler(async (req, res) => {
-    // Step 1: Delete all shipment records with missing or empty deliveryAddress
-    const deleteResult = await MobileShipment.deleteMany({
-        $or: [
-            { deliveryAddress: { $exists: false } },
-            { deliveryAddress: null },
-            { deliveryAddress: '' }
-        ]
-    });
-    if (deleteResult.deletedCount > 0) {
-        console.log(`[getMobileUsers] Cleaned up ${deleteResult.deletedCount} shipment(s) with empty deliveryAddress`);
-    }
+    // Note: Auto-cleanup of shipments with missing deliveryAddress has been removed
+    // to prevent accidental deletion of newly registered users via Postman.
 
-    // Step 2: Query only shipments that have a valid deliveryAddress
-    const shipments = await MobileShipment.find({
-        deliveryAddress: { $exists: true, $ne: null, $ne: '' }
-    }).sort({ createdAt: -1 });
+    // Fetch all records from the mobileusers collection (both shipments and standard users)
+    const records = await MobileShipment.find({}).sort({ createdAt: -1 });
 
     // Extract unique users by mobileNumber
     const uniqueUsersMap = new Map();
-    shipments.forEach(s => {
+    records.forEach(s => {
         const mobile = s.mobileNumber || s.mobile || 'N/A';
         if (mobile !== 'N/A' && !uniqueUsersMap.has(mobile)) {
+            // Determine if this document represents a shipment (has a delivery address)
+            const hasShipment = s.deliveryAddress && s.deliveryAddress.trim() !== '';
+
             uniqueUsersMap.set(mobile, {
                 _id: s._id,
-                name: s.customerName || 'N/A',
-                email: s.customerName ? `${s.customerName.toLowerCase().replace(/\s/g, '')}@example.com` : 'N/A',
+                name: s.customerName || s.name || 'N/A',
+                email: s.email || (s.customerName ? `${s.customerName.toLowerCase().replace(/\s/g, '')}@example.com` : 'N/A'),
                 mobile: mobile,
-                altMobile: '',
-                address: s.pickupAddress || 'N/A',
+                altMobile: s.altMobile || '',
+                address: s.address || s.pickupAddress || 'N/A',
                 isActive: s.isActive !== undefined ? s.isActive : true,
                 createdAt: s.createdAt || new Date(),
-                latestShipment: {
+                latestShipment: hasShipment ? {
                     trackingId: s._id.toString(),
                     lrNumber: s.trackingId || s.parcelRequestId || s._id.toString().substring(18).toUpperCase(),
-                    customerName: s.customerName || 'N/A',
+                    customerName: s.customerName || s.name || 'N/A',
                     mobileNumber: mobile,
                     pickupCity: s.pickupCity || 'Pune',
                     pickupAddress: s.pickupAddress || 'N/A',
@@ -188,9 +180,9 @@ const getMobileUsers = asyncHandler(async (req, res) => {
                     quantity: s.quantity || 1,
                     expectedDeliveryDate: s.expectedDeliveryDate,
                     currentShipmentStatus: s.currentStatus || 'Pending',
-                    currentBranch: s.currentBranch || req.user.name,
+                    currentBranch: s.currentBranch || (req.user ? req.user.name : 'Branch Hub'),
                     currentLocation: s.currentLocation || s.pickupAddress || 'N/A'
-                }
+                } : null
             });
         }
     });
