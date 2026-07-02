@@ -19,6 +19,8 @@ import {
   Filter,
   Phone,
   Send,
+  Trash2,
+  Edit3,
 } from "lucide-react";
 
 const MobileUsers = () => {
@@ -51,12 +53,89 @@ const MobileUsers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 10;
 
-  // Modal state for Enquiry & Complaint Response
+    // Modal state for Enquiry & Complaint Response
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState("enquiry"); // 'enquiry' | 'complaint'
   const [selectedItem, setSelectedItem] = useState(null);
   const [adminResponseText, setAdminResponseText] = useState("");
   const [itemStatus, setItemStatus] = useState("Open");
+
+
+    // Edit & Delete Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editType, setEditType] = useState("");
+  
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: null, type: null });
+  
+  // Handle Delete (Triggers Custom Modal)
+  const handleDelete = (id, type) => {
+    setDeleteConfirm({ isOpen: true, id, type });
+  };
+  
+  const confirmDeleteAction = async () => {
+    const { id, type } = deleteConfirm;
+    try {
+      let endpoint = '';
+      if (type === 'user') endpoint = `/api/mobile-users/${id}`;
+      else if (type === 'shipment') endpoint = `/api/mobile-users/shipments/${id}`;
+      else if (type === 'enquiry') endpoint = `/api/mobile-user-enquiries/${id}`;
+      else if (type === 'complaint') endpoint = `/api/mobile-user-complaints/${id}`;
+      
+      await axios.delete(endpoint, config);
+      
+      if (type === 'user') {
+        setUsers(prev => prev.filter(u => u._id !== id));
+      } else if (type === 'shipment') {
+        setUsers(prev => prev.map(u => u.latestShipment && (u.latestShipment.trackingId === id || u.latestShipment.lrNumber === id) ? {...u, latestShipment: null} : u));
+      } else if (type === 'enquiry') {
+        setEnquiries(prev => prev.filter(e => e._id !== id));
+      } else if (type === 'complaint') {
+        setComplaints(prev => prev.filter(c => c._id !== id));
+      }
+      toast.success(`${type} deleted successfully`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || `Failed to delete ${type}`);
+    } finally {
+      setDeleteConfirm({ isOpen: false, id: null, type: null });
+    }
+  };
+
+  // Handle Edit Open
+  const openEditModal = (item, type) => {
+    setEditItem({ ...item });
+    setEditType(type);
+    setIsEditModalOpen(true);
+  };
+
+  // Handle Edit Save
+  const saveEdit = async (e) => {
+    e.preventDefault();
+    try {
+      let endpoint = '';
+      if (editType === 'user') endpoint = `/api/mobile-users/${editItem._id}`;
+      else if (editType === 'shipment') endpoint = `/api/mobile-users/shipments/${editItem.trackingId || editItem._id}`;
+      else if (editType === 'enquiry') endpoint = `/api/mobile-user-enquiries/${editItem._id}`;
+      else if (editType === 'complaint') endpoint = `/api/mobile-user-complaints/${editItem._id}`;
+      
+      const { data } = await axios.put(endpoint, editItem, config);
+      
+      if (editType === 'user') {
+        setUsers(prev => prev.map(u => u._id === editItem._id ? { ...u, ...data } : u));
+      } else if (editType === 'shipment') {
+        setUsers(prev => prev.map(u => u.latestShipment && (u.latestShipment.trackingId === (editItem.trackingId || editItem._id) || u.latestShipment.lrNumber === (editItem.trackingId || editItem._id)) ? {...u, latestShipment: {...u.latestShipment, ...data}} : u));
+      } else if (editType === 'enquiry') {
+        setEnquiries(prev => prev.map(enq => enq._id === editItem._id ? { ...enq, ...data } : enq));
+      } else if (editType === 'complaint') {
+        setComplaints(prev => prev.map(c => c._id === editItem._id ? { ...c, ...data } : c));
+      }
+      
+      toast.success(`${editType} updated successfully`);
+      setIsEditModalOpen(false);
+    } catch (error) {
+      toast.error(error.response?.data?.message || `Failed to update ${editType}`);
+    }
+  };
 
   // Fetch all data
   const fetchData = async () => {
@@ -936,13 +1015,29 @@ const MobileUsers = () => {
                           {u.isActive ? "Active" : "Blocked"}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-center print:hidden">
-                        <button
-                          onClick={() => toggleUserStatus(u._id, u.isActive)}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition duration-200 ${u.isActive ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" : "bg-green-50 text-green-600 hover:bg-green-100 border border-green-200"}`}
-                        >
-                          {u.isActive ? "Block" : "Activate"}
-                        </button>
+                                            <td className="py-4 px-6 text-center print:hidden">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => toggleUserStatus(u._id, u.isActive)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition duration-200 ${u.isActive ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" : "bg-green-50 text-green-600 hover:bg-green-100 border border-green-200"}`}
+                          >
+                            {u.isActive ? "Block" : "Activate"}
+                          </button>
+                          <button
+                            onClick={() => openEditModal(u, "user")}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition duration-200 border border-blue-100"
+                            title="Edit User"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(u._id, "user")}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-500 p-1.5 rounded-lg transition duration-200 border border-rose-100"
+                            title="Delete User"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -960,7 +1055,6 @@ const MobileUsers = () => {
                     <th className="py-4 px-6">PICKUP / DELIVERY ADDRESS</th>
                     <th className="py-4 px-6">TRANSPORT</th>
                     <th className="py-4 px-6">GOODS SPECS</th>
-                    <th className="py-4 px-6">EXPECTED DATE</th>
                     <th className="py-4 px-6">STATUS</th>
                     <th className="py-4 px-6 text-center print:hidden">
                       ACTIONS
@@ -1044,15 +1138,6 @@ const MobileUsers = () => {
                         )}
                       </td>
 
-                      {/* EXPECTED DATE */}
-                      <td className="py-3 px-6 font-semibold">
-                        {s.expectedDeliveryDate
-                          ? new Date(
-                              s.expectedDeliveryDate,
-                            ).toLocaleDateString()
-                          : "-"}
-                      </td>
-
                       {/* STATUS */}
                       <td className="py-3 px-6">
                         <span
@@ -1086,20 +1171,28 @@ const MobileUsers = () => {
                         </span>
                       </td>
 
-                      {/* ACTIONS */}
+                                            {/* ACTIONS */}
                       <td className="py-3 px-6 text-center print:hidden">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => openManageShipment(s)}
                             className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[10px] tracking-wide transition duration-200 shadow-sm"
                           >
-                            Manage Shipment
+                            Manage
                           </button>
                           <button
-                            onClick={() => openManageShipment(s)}
-                            className="bg-rose-50 hover:bg-rose-100 text-rose-500 p-1.5 rounded-lg transition duration-200 border border-rose-100"
+                            onClick={() => openEditModal(s, "shipment")}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition duration-200 border border-blue-100"
+                            title="Edit Shipment"
                           >
-                            <Smartphone size={12} />
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(s.trackingId || s._id, "shipment")}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-500 p-1.5 rounded-lg transition duration-200 border border-rose-100"
+                            title="Delete Shipment"
+                          >
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </td>
@@ -1185,15 +1278,31 @@ const MobileUsers = () => {
                         </span>
                       </td>
 
-                      {/* ACTION */}
+                                            {/* ACTION */}
                       <td className="py-4 px-6 text-center print:hidden">
-                        <button
-                          onClick={() => openReplyModal(e, "enquiry")}
-                          className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-600 px-3 py-1.5 rounded-lg text-xs font-bold transition duration-200 flex items-center justify-center gap-1 mx-auto shadow-sm"
-                        >
-                          <MessageSquare size={12} />
-                          <span>Respond</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => openReplyModal(e, "enquiry")}
+                            className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-600 p-1.5 rounded-lg transition duration-200"
+                            title="Respond"
+                          >
+                            <MessageSquare size={12} />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(e, "enquiry")}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition duration-200 border border-blue-100"
+                            title="Edit Enquiry"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(e._id, "enquiry")}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-500 p-1.5 rounded-lg transition duration-200 border border-rose-100"
+                            title="Delete Enquiry"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1284,15 +1393,31 @@ const MobileUsers = () => {
                         </span>
                       </td>
 
-                      {/* ACTION */}
+                                            {/* ACTION */}
                       <td className="py-4 px-6 text-center print:hidden">
-                        <button
-                          onClick={() => openReplyModal(c, "complaint")}
-                          className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-600 px-3 py-1.5 rounded-lg text-xs font-bold transition duration-200 flex items-center justify-center gap-1 mx-auto shadow-sm"
-                        >
-                          <MessageSquare size={12} />
-                          <span>Respond</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => openReplyModal(c, "complaint")}
+                            className="border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-600 p-1.5 rounded-lg transition duration-200"
+                            title="Respond"
+                          >
+                            <MessageSquare size={12} />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(c, "complaint")}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition duration-200 border border-blue-100"
+                            title="Edit Complaint"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(c._id, "complaint")}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-500 p-1.5 rounded-lg transition duration-200 border border-rose-100"
+                            title="Delete Complaint"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1341,6 +1466,128 @@ const MobileUsers = () => {
         </div>
       )}
 
+            {/* Edit Modal - Premium Stylish UI */}
+      {isEditModalOpen && editItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md print:hidden animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-100/50 transform scale-100 transition-all duration-300">
+            {/* Header */}
+            <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white">
+              <div>
+                <h3 className="font-black text-slate-800 text-xl tracking-wide capitalize">
+                  Edit {editType} Data
+                </h3>
+                <p className="text-xs text-slate-400 mt-1.5 font-semibold">
+                  Modify and save the updated details below.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-700 hover:rotate-90 transition-all duration-300">
+                <X size={18} />
+              </button>
+            </div>
+            
+            {/* Body Form */}
+            <div className="p-8 overflow-y-auto max-h-[65vh] bg-slate-50/30">
+              <form id="edit-form" onSubmit={saveEdit} className="space-y-6">
+                {editType === 'user' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Name</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.name || ''} onChange={e => setEditItem({...editItem, name: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Email</label><input type="email" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.email || ''} onChange={e => setEditItem({...editItem, email: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mobile</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.mobile || ''} onChange={e => setEditItem({...editItem, mobile: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Alt Mobile</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.altMobile || ''} onChange={e => setEditItem({...editItem, altMobile: e.target.value})} /></div>
+                    <div className="col-span-1 md:col-span-2 space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Address</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.address || ''} onChange={e => setEditItem({...editItem, address: e.target.value})} /></div>
+                  </div>
+                )}
+                {editType === 'shipment' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Customer Name</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.customerName || ''} onChange={e => setEditItem({...editItem, customerName: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mobile Number</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.mobileNumber || ''} onChange={e => setEditItem({...editItem, mobileNumber: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pickup City</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.pickupCity || ''} onChange={e => setEditItem({...editItem, pickupCity: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Delivery City</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.deliveryCity || ''} onChange={e => setEditItem({...editItem, deliveryCity: e.target.value})} /></div>
+                    <div className="col-span-1 md:col-span-2 space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Delivery Address</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.deliveryAddress || ''} onChange={e => setEditItem({...editItem, deliveryAddress: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Parcel Type</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.parcelType || ''} onChange={e => setEditItem({...editItem, parcelType: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Current Status</label>
+                      <select className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.currentShipmentStatus || editItem.currentStatus || 'Pending'} onChange={e => setEditItem({...editItem, currentStatus: e.target.value, currentShipmentStatus: e.target.value})}>
+                        <option value="Pending">Pending</option>
+                        <option value="Pickup Pending">Pickup Pending</option>
+                        <option value="In Transit">In Transit</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+                {editType === 'enquiry' && (
+                  <div className="grid grid-cols-1 gap-5">
+                    <div className="grid grid-cols-2 gap-5">
+                      <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Name</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.name || editItem.user?.name || ''} onChange={e => setEditItem({...editItem, name: e.target.value})} /></div>
+                      <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mobile</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.mobile || ''} onChange={e => setEditItem({...editItem, mobile: e.target.value})} /></div>
+                    </div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Subject</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.subject || ''} onChange={e => setEditItem({...editItem, subject: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Message</label><textarea className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" rows="4" value={editItem.message || ''} onChange={e => setEditItem({...editItem, message: e.target.value})} /></div>
+                  </div>
+                )}
+                {editType === 'complaint' && (
+                  <div className="grid grid-cols-1 gap-5">
+                    <div className="grid grid-cols-2 gap-5">
+                      <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Contact Name</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.contactName || editItem.user?.name || ''} onChange={e => setEditItem({...editItem, contactName: e.target.value})} /></div>
+                      <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Contact Mobile</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.contactMobile || editItem.user?.mobile || ''} onChange={e => setEditItem({...editItem, contactMobile: e.target.value})} /></div>
+                    </div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Subject</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.subject || ''} onChange={e => setEditItem({...editItem, subject: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Description</label><textarea className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" rows="4" value={editItem.description || ''} onChange={e => setEditItem({...editItem, description: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Priority</label>
+                      <select className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.priority || 'Normal'} onChange={e => setEditItem({...editItem, priority: e.target.value})}>
+                        <option value="Low">Low Priority</option>
+                        <option value="Normal">Normal Priority</option>
+                        <option value="High">High Priority</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </form>
+            </div>
+            
+            {/* Footer */}
+            <div className="px-8 py-5 border-t border-slate-100 bg-white flex justify-end gap-3">
+              <button onClick={() => setIsEditModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition duration-200 text-sm">
+                Cancel
+              </button>
+              <button type="submit" form="edit-form" className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-extrabold tracking-wide transition duration-200 shadow-lg shadow-purple-500/30 active:scale-95 text-sm flex items-center gap-2">
+                <Edit3 size={14} /> Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal - Modern Style */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200 print:hidden">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm p-8 text-center transform transition-all scale-100 animate-in zoom-in-95 duration-300 border border-slate-100">
+            <div className="w-20 h-20 mx-auto bg-red-50 rounded-full flex items-center justify-center mb-6 border-8 border-red-50/50">
+              <Trash2 size={32} className="text-red-500" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-800 mb-2">Are you sure?</h3>
+            <p className="text-slate-500 font-medium text-sm mb-8 leading-relaxed">
+              You are about to permanently delete this <span className="font-bold text-slate-700 capitalize">{deleteConfirm.type}</span>. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setDeleteConfirm({ isOpen: false, id: null, type: null })}
+                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-all duration-200">
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteAction}
+                className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30 text-white font-black tracking-wide rounded-xl transition-all duration-200 active:scale-95">
+                Delete Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Respond Modal (Stunning Premium Light Theme!) */}
       {isModalOpen && selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm print:hidden">

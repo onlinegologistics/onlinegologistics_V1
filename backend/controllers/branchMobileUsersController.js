@@ -191,26 +191,76 @@ const getMobileUsers = asyncHandler(async (req, res) => {
     res.json(usersList);
 });
 
-// @desc    Update mobile user isActive status
+// @desc    Update mobile user isActive status and details
 // @route   PUT /api/mobile-users/:id
 // @access  Private (Branch/Admin)
 const updateMobileUser = asyncHandler(async (req, res) => {
-    const { isActive } = req.body;
+    const { isActive, name, email, mobile, altMobile, address } = req.body;
     
-    // Find one shipment record to get the customer's mobile number
-    const shipmentRecord = await MobileShipment.findById(req.params.id);
+    const shipments = await MobileShipment.find({
+        $or: [
+            { mobileNumber: req.params.id },
+            { mobile: req.params.id },
+            { _id: req.params.id }
+        ]
+    });
 
-    if (!shipmentRecord) {
+    if (shipments.length === 0) {
         res.status(404);
-        throw new Error('Customer shipment record not found');
+        throw new Error('Customer record not found');
     }
 
-    const mobile = shipmentRecord.mobileNumber;
+    const mobileToUpdate = shipments[0].mobileNumber || shipments[0].mobile || req.params.id;
 
-    // Update isActive for all shipments under this mobile number in the mobileusers collection
-    await MobileShipment.updateMany({ mobileNumber: mobile }, { isActive });
+    const updateFields = {};
+    if (isActive !== undefined) updateFields.isActive = isActive;
+    if (name !== undefined) {
+        updateFields.customerName = name;
+        updateFields.name = name;
+    }
+    if (email !== undefined) updateFields.email = email;
+    if (mobile !== undefined) {
+        updateFields.mobileNumber = mobile;
+        updateFields.mobile = mobile;
+    }
+    if (altMobile !== undefined) updateFields.altMobile = altMobile;
+    if (address !== undefined) {
+        updateFields.pickupAddress = address;
+        updateFields.address = address;
+    }
 
-    res.json({ _id: req.params.id, isActive });
+    await MobileShipment.updateMany(
+        { $or: [{ mobileNumber: mobileToUpdate }, { mobile: mobileToUpdate }, { _id: req.params.id }] },
+        updateFields
+    );
+
+    res.json({ _id: req.params.id, ...updateFields });
+});
+
+// @desc    Delete a mobile user completely
+// @route   DELETE /api/mobile-users/:id
+// @access  Private (Branch/Admin)
+const deleteMobileUser = asyncHandler(async (req, res) => {
+    const shipments = await MobileShipment.find({
+        $or: [
+            { mobileNumber: req.params.id },
+            { mobile: req.params.id },
+            { _id: req.params.id }
+        ]
+    });
+
+    if (shipments.length === 0) {
+        res.status(404);
+        throw new Error('Customer record not found');
+    }
+
+    const mobileToDelete = shipments[0].mobileNumber || shipments[0].mobile || req.params.id;
+
+    await MobileShipment.deleteMany({
+        $or: [{ mobileNumber: mobileToDelete }, { mobile: mobileToDelete }, { _id: req.params.id }]
+    });
+
+    res.json({ message: 'User deleted successfully' });
 });
 
 // @desc    Get all enquiries
@@ -248,7 +298,7 @@ const getEnquiries = asyncHandler(async (req, res) => {
 // @route   PUT /api/mobile-user-enquiries/:id
 // @access  Private (Branch/Admin)
 const updateEnquiry = asyncHandler(async (req, res) => {
-    const { status, adminResponse } = req.body;
+    const { status, adminResponse, name, mobile, subject, message, enquiryType } = req.body;
     const enquiry = await MobileUserEnquiry.findById(req.params.id);
 
     if (!enquiry) {
@@ -256,11 +306,29 @@ const updateEnquiry = asyncHandler(async (req, res) => {
         throw new Error('Enquiry not found');
     }
 
-    enquiry.status = status;
-    enquiry.adminResponse = adminResponse;
+    if (status !== undefined) enquiry.status = status;
+    if (adminResponse !== undefined) enquiry.adminResponse = adminResponse;
+    if (name !== undefined) enquiry.name = name;
+    if (mobile !== undefined) enquiry.mobile = mobile;
+    if (subject !== undefined) enquiry.subject = subject;
+    if (message !== undefined) enquiry.message = message;
+    if (enquiryType !== undefined) enquiry.enquiryType = enquiryType;
+
     await enquiry.save();
 
     res.json(enquiry);
+});
+
+// @desc    Delete an enquiry
+// @route   DELETE /api/mobile-user-enquiries/:id
+// @access  Private (Branch/Admin)
+const deleteEnquiry = asyncHandler(async (req, res) => {
+    const enquiry = await MobileUserEnquiry.findByIdAndDelete(req.params.id);
+    if (!enquiry) {
+        res.status(404);
+        throw new Error('Enquiry not found');
+    }
+    res.json({ message: 'Enquiry deleted successfully' });
 });
 
 // @desc    Get all complaints
@@ -299,7 +367,7 @@ const getComplaints = asyncHandler(async (req, res) => {
 // @route   PUT /api/mobile-user-complaints/:id
 // @access  Private (Branch/Admin)
 const updateComplaint = asyncHandler(async (req, res) => {
-    const { status, adminResponse } = req.body;
+    const { status, adminResponse, contactName, contactMobile, subject, description, priority } = req.body;
     const complaint = await MobileUserComplaint.findById(req.params.id);
 
     if (!complaint) {
@@ -307,11 +375,29 @@ const updateComplaint = asyncHandler(async (req, res) => {
         throw new Error('Complaint not found');
     }
 
-    complaint.status = status;
-    complaint.adminResponse = adminResponse;
+    if (status !== undefined) complaint.status = status;
+    if (adminResponse !== undefined) complaint.adminResponse = adminResponse;
+    if (contactName !== undefined) complaint.contactName = contactName;
+    if (contactMobile !== undefined) complaint.contactMobile = contactMobile;
+    if (subject !== undefined) complaint.subject = subject;
+    if (description !== undefined) complaint.description = description;
+    if (priority !== undefined) complaint.priority = priority;
+
     await complaint.save();
 
     res.json(complaint);
+});
+
+// @desc    Delete a complaint
+// @route   DELETE /api/mobile-user-complaints/:id
+// @access  Private (Branch/Admin)
+const deleteComplaint = asyncHandler(async (req, res) => {
+    const complaint = await MobileUserComplaint.findByIdAndDelete(req.params.id);
+    if (!complaint) {
+        res.status(404);
+        throw new Error('Complaint not found');
+    }
+    res.json({ message: 'Complaint deleted successfully' });
 });
 
 const updateMobileShipment = asyncHandler(async (req, res) => {
@@ -345,7 +431,13 @@ const updateMobileShipment = asyncHandler(async (req, res) => {
         transportType,
         weight,
         quantity,
-        parcelType
+        parcelType,
+        customerName,
+        mobileNumber,
+        pickupCity,
+        deliveryCity,
+        pickupAddress,
+        deliveryAddress
     } = req.body;
 
     const oldStatus = shipment.currentStatus;
@@ -360,6 +452,12 @@ const updateMobileShipment = asyncHandler(async (req, res) => {
     if (weight !== undefined) shipment.weight = weight;
     if (quantity !== undefined) shipment.quantity = quantity;
     if (parcelType !== undefined) shipment.parcelType = parcelType;
+    if (customerName !== undefined) shipment.customerName = customerName;
+    if (mobileNumber !== undefined) shipment.mobileNumber = mobileNumber;
+    if (pickupCity !== undefined) shipment.pickupCity = pickupCity;
+    if (deliveryCity !== undefined) shipment.deliveryCity = deliveryCity;
+    if (pickupAddress !== undefined) shipment.pickupAddress = pickupAddress;
+    if (deliveryAddress !== undefined) shipment.deliveryAddress = deliveryAddress;
 
     // If status changed, push a new checkpoint to trackingHistory
     if (currentStatus !== undefined && currentStatus !== oldStatus) {
@@ -408,13 +506,42 @@ const getMobileShipmentById = asyncHandler(async (req, res) => {
     res.json(shipment);
 });
 
+// @desc    Delete a mobile shipment completely
+// @route   DELETE /api/mobile-users/shipments/:id
+// @access  Private (Branch/Admin)
+const deleteMobileShipment = asyncHandler(async (req, res) => {
+    const mongoose = require('mongoose');
+    const query = {};
+    if (mongoose.isValidObjectId(req.params.id)) {
+        query.$or = [
+            { _id: req.params.id },
+            { trackingId: req.params.id },
+            { parcelRequestId: req.params.id }
+        ];
+    } else {
+        query.$or = [{ trackingId: req.params.id }, { parcelRequestId: req.params.id }];
+    }
+
+    const shipment = await MobileShipment.findOneAndDelete(query);
+    if (!shipment) {
+        res.status(404);
+        throw new Error('Shipment not found');
+    }
+
+    res.json({ message: 'Shipment deleted successfully' });
+});
+
 module.exports = {
     getMobileUsers,
     updateMobileUser,
+    deleteMobileUser,
     getEnquiries,
     updateEnquiry,
+    deleteEnquiry,
     getComplaints,
     updateComplaint,
+    deleteComplaint,
     updateMobileShipment,
-    getMobileShipmentById
+    getMobileShipmentById,
+    deleteMobileShipment
 };
