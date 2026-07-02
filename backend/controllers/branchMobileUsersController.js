@@ -142,17 +142,8 @@ const seedMockDataIfEmpty = async (branchId) => {
 };
 
 const getMobileUsers = asyncHandler(async (req, res) => {
-    // Step 1: Delete all shipment records with missing or empty deliveryAddress
-    const deleteResult = await MobileShipment.deleteMany({
-        $or: [
-            { deliveryAddress: { $exists: false } },
-            { deliveryAddress: null },
-            { deliveryAddress: '' }
-        ]
-    });
-    if (deleteResult.deletedCount > 0) {
-        console.log(`[getMobileUsers] Cleaned up ${deleteResult.deletedCount} shipment(s) with empty deliveryAddress`);
-    }
+    // Note: Auto-cleanup of shipments with missing deliveryAddress has been removed
+    // to prevent accidental deletion of newly registered users via Postman.
 
     // Step 2: Query only shipments that have a valid deliveryAddress
     const shipments = await MobileShipment.find({
