@@ -142,46 +142,66 @@ const seedMockDataIfEmpty = async (branchId) => {
 };
 
 const getMobileUsers = asyncHandler(async (req, res) => {
-    // Fetch all users from the mobileusers collection
-    const mobileUsers = await MobileUser.find({}).sort({ createdAt: -1 }).lean();
-    
-    // Fetch all shipments to map the latest shipment to each user
-    const shipments = await MobileShipment.find({}).sort({ createdAt: -1 }).lean();
+    // Both MobileUser and MobileShipment are mapped to the 'mobileusers' collection.
+    // We fetch all records, and since we use .lean(), we get all fields present in the database.
+    const allRecords = await MobileShipment.find({}).sort({ createdAt: -1 }).lean();
 
-    // Group shipments by mobile number to get the latest one
-    const shipmentMap = new Map();
-    shipments.forEach(s => {
-        const mobile = s.mobileNumber || s.mobile;
-        if (mobile && !shipmentMap.has(mobile)) {
-            // First one encountered is the latest due to sort
-            shipmentMap.set(mobile, s);
+    const userProfiles = new Map();
+    const latestShipments = new Map();
+
+    // Separate records into user profiles and shipments
+    allRecords.forEach(record => {
+        const mobile = record.mobileNumber || record.mobile || 'N/A';
+        if (mobile === 'N/A') return;
+
+        const hasShipment = record.deliveryAddress && record.deliveryAddress.trim() !== '';
+
+        if (hasShipment) {
+            // It's a shipment record. Store the first one we see (which is the latest due to sort)
+            if (!latestShipments.has(mobile)) {
+                latestShipments.set(mobile, record);
+            }
+        } else {
+            // It's likely a user profile record (or a shipment missing delivery address).
+            // We want the profile that has address/email info.
+            if (!userProfiles.has(mobile)) {
+                userProfiles.set(mobile, record);
+            } else {
+                // If we already have a profile, check if this one has more info (e.g. email or address)
+                const existing = userProfiles.get(mobile);
+                if ((!existing.email && record.email) || (!existing.address && record.address)) {
+                     // Merge info
+                     userProfiles.set(mobile, { ...existing, ...record });
+                }
+            }
         }
     });
 
     const uniqueUsersMap = new Map();
 
-    // Add actual users from mobileusers collection
-    mobileUsers.forEach(u => {
-        const mobile = u.mobile || u.mobileNumber || 'N/A';
-        const s = shipmentMap.get(mobile);
-        const hasShipment = s && s.deliveryAddress && s.deliveryAddress.trim() !== '';
+    // Collect all unique mobile numbers from both maps
+    const allMobiles = new Set([...userProfiles.keys(), ...latestShipments.keys()]);
+
+    allMobiles.forEach(mobile => {
+        const profile = userProfiles.get(mobile) || {};
+        const s = latestShipments.get(mobile);
 
         uniqueUsersMap.set(mobile, {
-            _id: u._id,
-            name: u.name || u.customerName || 'N/A',
-            email: u.email || (u.name ? `${u.name.toLowerCase().replace(/\s/g, '')}@example.com` : 'N/A'),
+            _id: profile._id || (s ? s._id : null),
+            name: profile.name || profile.customerName || (s ? (s.customerName || s.name) : 'N/A') || 'N/A',
+            email: profile.email || (s ? s.email : null) || 'N/A',
             mobile: mobile,
-            altMobile: u.altMobile || '',
-            address: u.address || u.pickupAddress || 'N/A',
-            isActive: u.isActive !== undefined ? u.isActive : true,
-            createdAt: u.createdAt || new Date(),
-            latestShipment: hasShipment ? {
+            altMobile: profile.altMobile || (s ? s.altMobile : '') || '',
+            address: profile.address || profile.pickupAddress || (s ? s.pickupAddress : 'N/A') || 'N/A',
+            isActive: profile.isActive !== undefined ? profile.isActive : (s && s.isActive !== undefined ? s.isActive : true),
+            createdAt: profile.createdAt || (s ? s.createdAt : new Date()),
+            latestShipment: s ? {
                 trackingId: s._id.toString(),
                 lrNumber: s.trackingId || s.parcelRequestId || s._id.toString().substring(18).toUpperCase(),
-                customerName: s.customerName || s.name || u.name || 'N/A',
+                customerName: s.customerName || s.name || profile.name || 'N/A',
                 mobileNumber: mobile,
                 pickupCity: s.pickupCity || 'Pune',
-                pickupAddress: s.pickupAddress || 'N/A',
+                pickupAddress: s.pickupAddress || profile.address || 'N/A',
                 deliveryCity: s.deliveryCity || 'Latur',
                 deliveryAddress: s.deliveryAddress,
                 parcelType: s.parcelType || s.packageDescription || 'Package',
@@ -196,44 +216,10 @@ const getMobileUsers = asyncHandler(async (req, res) => {
         });
     });
 
-    // Also add users who only have shipments but no entry in mobileusers (just in case)
-    shipments.forEach(s => {
-        const mobile = s.mobileNumber || s.mobile || 'N/A';
-        if (mobile !== 'N/A' && !uniqueUsersMap.has(mobile)) {
-            const hasShipment = s.deliveryAddress && s.deliveryAddress.trim() !== '';
-
-            uniqueUsersMap.set(mobile, {
-                _id: s._id,
-                name: s.customerName || s.name || 'N/A',
-                email: s.email || (s.customerName ? `${s.customerName.toLowerCase().replace(/\s/g, '')}@example.com` : 'N/A'),
-                mobile: mobile,
-                altMobile: s.altMobile || '',
-                address: s.address || s.pickupAddress || 'N/A',
-                isActive: s.isActive !== undefined ? s.isActive : true,
-                createdAt: s.createdAt || new Date(),
-                latestShipment: hasShipment ? {
-                    trackingId: s._id.toString(),
-                    lrNumber: s.trackingId || s.parcelRequestId || s._id.toString().substring(18).toUpperCase(),
-                    customerName: s.customerName || s.name || 'N/A',
-                    mobileNumber: mobile,
-                    pickupCity: s.pickupCity || 'Pune',
-                    pickupAddress: s.pickupAddress || 'N/A',
-                    deliveryCity: s.deliveryCity || 'Latur',
-                    deliveryAddress: s.deliveryAddress,
-                    parcelType: s.parcelType || s.packageDescription || 'Package',
-                    transportType: s.transportType || 'Road',
-                    weight: s.weight || 0,
-                    quantity: s.quantity || 1,
-                    expectedDeliveryDate: s.expectedDeliveryDate,
-                    currentShipmentStatus: s.currentStatus || 'Pending',
-                    currentBranch: s.currentBranch || (req.user ? req.user.name : 'Branch Hub'),
-                    currentLocation: s.currentLocation || s.pickupAddress || 'N/A'
-                } : null
-            });
-        }
-    });
-
     const usersList = Array.from(uniqueUsersMap.values());
+    // Sort overall list by joined date descending
+    usersList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
     res.json(usersList);
 });
 
