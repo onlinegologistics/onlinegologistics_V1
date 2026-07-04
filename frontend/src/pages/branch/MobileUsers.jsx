@@ -202,8 +202,15 @@ const MobileUsers = () => {
         return matchesSearch && matchesStatus;
       });
     } else if (activeTab === "shipments") {
-      const shipments = users
-        .map((u) => u.latestShipment)
+      let allShipments = [];
+      users.forEach((u) => {
+        if (u.shipments && Array.isArray(u.shipments)) {
+          allShipments.push(...u.shipments);
+        } else if (u.latestShipment) {
+          allShipments.push(u.latestShipment);
+        }
+      });
+      const shipments = allShipments
         .filter(Boolean)
         // Only include shipments that have a valid deliveryAddress
         .filter(
