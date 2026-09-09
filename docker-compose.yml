@@ -1,4 +1,4 @@
-services:
+﻿services:
   backend:
     build:
       context: ./backend
@@ -12,8 +12,8 @@ services:
     volumes:
       - ./wa-auth:/app/wa-auth
     networks:
-      - app-network
+      - onlinegologistics_network
 
 networks:
-  app-network:
+  onlinegologistics_network:
     driver: bridge
