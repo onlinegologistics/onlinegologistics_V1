@@ -6,6 +6,7 @@ import {
     AlertCircle,
     CheckCircle2,
     Loader2,
+    LogOut,
     MessageCircle,
     RefreshCw,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const WhatsApp = () => {
     const [loading, setLoading] = useState(true);
     const [requestError, setRequestError] = useState('');
     const [restarting, setRestarting] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
     const [showRetry, setShowRetry] = useState(false);
 
     const config = { headers: { Authorization: `Bearer ${user?.token}` } };
@@ -52,6 +54,26 @@ const WhatsApp = () => {
         }
     };
 
+    const handleLogoutWhatsApp = async () => {
+        if (!window.confirm('Kya aap WhatsApp session logout karna chahte hain? Isse current linked WhatsApp disconnect ho jayega.')) {
+            return;
+        }
+
+        setLoggingOut(true);
+        setRequestError('');
+        try {
+            const { data } = await axios.post('/api/whatsapp/logout', {}, config);
+            setStatus(data);
+            setShowRetry(false);
+            toast.success('WhatsApp session successfully logged out');
+        } catch (e) {
+            setRequestError(e.response?.data?.message || 'WhatsApp logout nahi ho saka.');
+            toast.error('WhatsApp logout failed');
+        } finally {
+            setLoggingOut(false);
+        }
+    };
+
     useEffect(() => {
         fetchStatus();
         const interval = setInterval(fetchStatus, 3000);
@@ -72,9 +94,23 @@ const WhatsApp = () => {
         <div className="space-y-5">
             <Toaster position="top-right" />
 
-            <div>
-                <h1 className="text-2xl font-bold text-gray-800">WhatsApp Connection</h1>
-                <p className="text-gray-500 text-sm">Booking confirmation messages WhatsApp ke through bhejne ke liye connect karein</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800">WhatsApp Connection</h1>
+                    <p className="text-gray-500 text-sm">Booking confirmation messages WhatsApp ke through bhejne ke liye connect karein</p>
+                </div>
+
+                {status.connected && (
+                    <button
+                        type="button"
+                        onClick={handleLogoutWhatsApp}
+                        disabled={loggingOut || restarting}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 self-start sm:self-auto"
+                    >
+                        <LogOut className={loggingOut ? 'animate-spin' : ''} size={16} />
+                        {loggingOut ? 'Logging out...' : 'Logout WhatsApp'}
+                    </button>
+                )}
             </div>
 
             <div className="bg-white rounded-2xl shadow border p-6 flex flex-col items-center justify-center text-center min-h-[320px]">
@@ -84,12 +120,34 @@ const WhatsApp = () => {
                         <p className="text-sm">Loading status...</p>
                     </div>
                 ) : status.connected ? (
-                    <div className="flex flex-col items-center gap-3">
-                        <div className="bg-green-100 text-green-700 px-4 py-2 rounded-full font-bold flex items-center gap-2">
-                            <CheckCircle2 size={20} />
+                    <div className="flex flex-col items-center gap-4 max-w-md py-4">
+                        <div className="bg-green-100 text-green-700 px-5 py-2.5 rounded-full font-bold flex items-center gap-2 text-base shadow-sm">
+                            <CheckCircle2 size={22} />
                             WhatsApp Connected ✅
                         </div>
-                        <p className="text-gray-500 text-sm">Booking confirmations ab automatically WhatsApp par bhej di jayengi.</p>
+                        <p className="text-gray-500 text-sm">
+                            Booking confirmations ab automatically WhatsApp par bhej di jayengi. Aap chahein to session ko disconnect / logout kar sakte hain.
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={handleLogoutWhatsApp}
+                                disabled={loggingOut || restarting}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-5 py-2.5 text-sm font-semibold text-white transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <LogOut className={loggingOut ? 'animate-spin' : ''} size={17} />
+                                {loggingOut ? 'Logging out...' : 'Logout WhatsApp'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={generateNewQr}
+                                disabled={restarting || loggingOut}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 px-4 py-2.5 text-sm font-semibold text-gray-700 transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <RefreshCw className={restarting ? 'animate-spin' : ''} size={17} />
+                                {restarting ? 'Restarting...' : 'Restart Session'}
+                            </button>
+                        </div>
                     </div>
                 ) : status.qr ? (
                     <div className="flex flex-col items-center gap-3">
@@ -101,6 +159,15 @@ const WhatsApp = () => {
                         <p className="text-gray-500 text-sm max-w-sm">
                             WhatsApp app kholein → <span className="font-semibold">Settings</span> → <span className="font-semibold">Linked Devices</span> → <span className="font-semibold">Link a Device</span> → is QR code ko scan karein.
                         </p>
+                        <button
+                            type="button"
+                            onClick={generateNewQr}
+                            disabled={restarting}
+                            className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <RefreshCw className={restarting ? 'animate-spin' : ''} size={14} />
+                            {restarting ? 'Refreshing QR...' : 'Refresh QR Code'}
+                        </button>
                     </div>
                 ) : requestError || status.state === 'error' ? (
                     <div className="flex max-w-md flex-col items-center gap-3 text-gray-600">
@@ -109,30 +176,52 @@ const WhatsApp = () => {
                         <p className="text-sm">
                             {requestError || status.message || 'WhatsApp connection start nahi ho paaya.'}
                         </p>
-                        <button
-                            type="button"
-                            onClick={generateNewQr}
-                            disabled={restarting}
-                            className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            <RefreshCw className={restarting ? 'animate-spin' : ''} size={17} />
-                            {restarting ? 'Generating...' : 'Generate New QR'}
-                        </button>
+                        <div className="flex items-center gap-3 mt-2">
+                            <button
+                                type="button"
+                                onClick={generateNewQr}
+                                disabled={restarting || loggingOut}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <RefreshCw className={restarting ? 'animate-spin' : ''} size={17} />
+                                {restarting ? 'Generating...' : 'Generate New QR'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleLogoutWhatsApp}
+                                disabled={loggingOut || restarting}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <LogOut className={loggingOut ? 'animate-spin' : ''} size={17} />
+                                {loggingOut ? 'Resetting...' : 'Reset Session'}
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center gap-3 text-gray-400">
                         <Loader2 className="animate-spin" size={32} />
                         <p className="text-sm">{status.message || 'QR code generate ho raha hai, please wait...'}</p>
                         {showRetry && (
-                            <button
-                                type="button"
-                                onClick={generateNewQr}
-                                disabled={restarting}
-                                className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-cyan-700 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <RefreshCw className={restarting ? 'animate-spin' : ''} size={17} />
-                                {restarting ? 'Generating...' : 'Generate New QR'}
-                            </button>
+                            <div className="flex items-center gap-3 mt-2">
+                                <button
+                                    type="button"
+                                    onClick={generateNewQr}
+                                    disabled={restarting || loggingOut}
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-cyan-700 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <RefreshCw className={restarting ? 'animate-spin' : ''} size={17} />
+                                    {restarting ? 'Generating...' : 'Generate New QR'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleLogoutWhatsApp}
+                                    disabled={loggingOut || restarting}
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <LogOut className={loggingOut ? 'animate-spin' : ''} size={17} />
+                                    {loggingOut ? 'Resetting...' : 'Reset Session'}
+                                </button>
+                            </div>
                         )}
                     </div>
                 )}

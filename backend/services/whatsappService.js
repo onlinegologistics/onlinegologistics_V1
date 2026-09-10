@@ -194,6 +194,20 @@ const restartWhatsApp = async () => {
     return getWhatsAppStatus();
 };
 
+const logoutWhatsApp = async () => {
+    staleSessionResetAttempted = true;
+    clearTimers();
+    if (sock) {
+        try {
+            await sock.logout();
+        } catch (error) {
+            console.error('WhatsApp socket logout error:', errorMessage(error));
+        }
+    }
+    await startWhatsApp({ resetAuth: true });
+    return getWhatsAppStatus();
+};
+
 const getWhatsAppStatus = () => ({
     connected,
     qr: qrDataUrl,
@@ -225,6 +239,7 @@ const sendWhatsAppMessage = async (phone, text) => {
 module.exports = {
     startWhatsApp,
     restartWhatsApp,
+    logoutWhatsApp,
     getWhatsAppStatus,
     sendWhatsAppMessage,
 };
