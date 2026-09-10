@@ -41,7 +41,6 @@ const getNavLinks = (role) => {
         { to: "/users", label: "Agents", icon: Users },
         { to: "/complaints", label: "Complaints", icon: MessageSquareWarning },
         { to: "/reports", label: "Reports", icon: BarChart3 },
-        { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
         { to: "/branch/mobile-users", label: "Mobile Users", icon: Smartphone },
       ];
     case "user":

@@ -10,7 +10,7 @@ const {
 const canManageWhatsApp = (user) => {
     if (!user || !user.role) return false;
     const role = String(user.role).toLowerCase().trim();
-    return role === 'admin' || role === 'branch';
+    return role === 'admin';
 };
 
 // @desc    Get WhatsApp connection status / QR code

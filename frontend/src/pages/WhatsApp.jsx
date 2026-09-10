@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
@@ -13,6 +14,11 @@ import {
 
 const WhatsApp = () => {
     const { user } = useAuth();
+
+    if (user?.role !== 'admin') {
+        return <Navigate to="/dashboard" replace />;
+    }
+
     const [status, setStatus] = useState({
         connected: false,
         qr: null,
