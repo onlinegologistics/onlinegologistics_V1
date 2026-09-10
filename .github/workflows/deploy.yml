@@ -91,7 +91,7 @@ jobs:
       - name: Deploy uploaded release
         uses: appleboy/ssh-action@v1.2.2
         env:
-          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV || secrets.APP_BACKEND_ENV }}
           BACKEND_ENV_B64: ${{ secrets.BACKEND_ENV_B64 }}
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -166,6 +166,28 @@ jobs:
             elif [ -n "${BACKEND_ENV:-}" ]; then
               log "Writing backend/.env from BACKEND_ENV secret"
               printf '%s\n' "$BACKEND_ENV" > "$PROJECT_DIR/backend/.env"
+            fi
+
+            if [ ! -f "$PROJECT_DIR/backend/.env" ]; then
+              log "Looking for existing backend/.env on VPS"
+              for env_loc in \
+                "/var/www/onlinegologistics/backend/.env" \
+                "/var/www/onlinegologistics/.env" \
+                "/var/www/onlinego_app/backend/.env" \
+                "/var/www/onlinegologistics/onlinegologistics/backend/.env"; do
+                if [ -f "$env_loc" ]; then
+                  log "Found existing env file at $env_loc, copying..."
+                  cp "$env_loc" "$PROJECT_DIR/backend/.env"
+                  break
+                fi
+              done
+            fi
+
+            if [ ! -f "$PROJECT_DIR/backend/.env" ]; then
+              if docker ps -a --format "{{.Names}}" | grep -qx "onlinegologistics_backend"; then
+                log "Extracting .env from existing onlinegologistics_backend container"
+                docker cp onlinegologistics_backend:/app/.env "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+              fi
             fi
 
             if [ ! -f "$PROJECT_DIR/backend/.env" ]; then
