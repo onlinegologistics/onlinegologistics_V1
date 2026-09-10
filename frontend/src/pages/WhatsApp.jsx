@@ -67,8 +67,9 @@ const WhatsApp = () => {
             setShowRetry(false);
             toast.success('WhatsApp session successfully logged out');
         } catch (e) {
-            setRequestError(e.response?.data?.message || 'WhatsApp logout nahi ho saka.');
-            toast.error('WhatsApp logout failed');
+            const msg = e.response?.data?.message || 'WhatsApp logout nahi ho saka.';
+            setRequestError(msg);
+            toast.error(msg);
         } finally {
             setLoggingOut(false);
         }

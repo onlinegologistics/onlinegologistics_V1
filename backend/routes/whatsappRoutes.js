@@ -7,7 +7,11 @@ const {
     logoutWhatsApp,
 } = require('../services/whatsappService');
 
-const canManageWhatsApp = (user) => ['branch', 'admin'].includes(user.role);
+const canManageWhatsApp = (user) => {
+    if (!user || !user.role) return false;
+    const role = String(user.role).toLowerCase().trim();
+    return role === 'admin' || role === 'branch';
+};
 
 // @desc    Get WhatsApp connection status / QR code
 // @route   GET /api/whatsapp/status
@@ -48,7 +52,8 @@ router.post('/logout', protect, async (req, res) => {
         const status = await logoutWhatsApp();
         res.status(200).json(status);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Logout WhatsApp route error:', error);
+        res.status(500).json({ message: error.message || 'WhatsApp logout could not be completed' });
     }
 });
 

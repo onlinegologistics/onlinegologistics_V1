@@ -44,6 +44,23 @@ const clearTimers = () => {
 
 const errorMessage = (error) => error?.message || String(error || 'Unknown WhatsApp error');
 
+const clearAuthFolder = () => {
+    try {
+        if (fs.existsSync(AUTH_FOLDER)) {
+            fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+        }
+    } catch (error) {
+        console.warn('Could not remove auth folder cleanly:', errorMessage(error));
+    }
+    try {
+        if (!fs.existsSync(AUTH_FOLDER)) {
+            fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+        }
+    } catch (error) {
+        console.error('Could not create auth folder:', errorMessage(error));
+    }
+};
+
 const scheduleReconnect = (resetAuth = false) => {
     if (reconnectTimer) return;
 
@@ -76,9 +93,12 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
     }
 
     if (resetAuth) {
-        fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+        clearAuthFolder();
+    } else {
+        if (!fs.existsSync(AUTH_FOLDER)) {
+            fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+        }
     }
-    fs.mkdirSync(AUTH_FOLDER, { recursive: true });
 
     updateStatus('starting', resetAuth
         ? 'Generating a new WhatsApp QR code'
@@ -100,7 +120,7 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
         throw error;
     }
 
-    const hasSavedSession = Boolean(state.creds.registered);
+    const hasSavedSession = Boolean(state.creds?.registered);
     sock = currentSocket;
     currentSocket.ev.on('creds.update', () => {
         if (generation !== sessionGeneration) return;
@@ -149,7 +169,7 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
                 const message = errorMessage(lastDisconnect?.error);
 
                 if (loggedOut) {
-                    fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
+                    clearAuthFolder();
                     updateStatus('reconnecting', 'Previous WhatsApp session expired; generating a new QR code');
                     scheduleReconnect(true);
                 } else {
@@ -190,21 +210,66 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
 
 const restartWhatsApp = async () => {
     staleSessionResetAttempted = true;
-    await startWhatsApp({ resetAuth: true });
+    sessionGeneration++;
+    clearTimers();
+
+    const previousSocket = sock;
+    sock = null;
+    connected = false;
+    qrDataUrl = null;
+
+    if (previousSocket) {
+        try {
+            previousSocket.end(new Error('Restarting WhatsApp connection'));
+        } catch (e) {}
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    clearAuthFolder();
+
+    try {
+        await startWhatsApp({ resetAuth: false });
+    } catch (error) {
+        console.error('Error starting WhatsApp on restart:', errorMessage(error));
+    }
+
     return getWhatsAppStatus();
 };
 
 const logoutWhatsApp = async () => {
     staleSessionResetAttempted = true;
+    sessionGeneration++;
     clearTimers();
-    if (sock) {
+
+    const previousSocket = sock;
+    sock = null;
+    connected = false;
+    qrDataUrl = null;
+
+    if (previousSocket) {
         try {
-            await sock.logout();
-        } catch (error) {
-            console.error('WhatsApp socket logout error:', errorMessage(error));
-        }
+            await Promise.race([
+                previousSocket.logout().catch(() => {}),
+                new Promise((resolve) => setTimeout(resolve, 2000)),
+            ]);
+        } catch (e) {}
+
+        try {
+            previousSocket.end(new Error('Logged out by user'));
+        } catch (e) {}
     }
-    await startWhatsApp({ resetAuth: true });
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    clearAuthFolder();
+
+    updateStatus('starting', 'WhatsApp logged out. Generating a new QR code...');
+
+    try {
+        await startWhatsApp({ resetAuth: false });
+    } catch (error) {
+        console.error('Error restarting WhatsApp after logout:', errorMessage(error));
+    }
+
     return getWhatsAppStatus();
 };
 
