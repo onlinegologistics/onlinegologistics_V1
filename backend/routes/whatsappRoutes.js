@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const {
+    startWhatsApp,
     getWhatsAppStatus,
     restartWhatsApp,
     logoutWhatsApp,
@@ -20,7 +21,11 @@ router.get('/status', protect, async (req, res) => {
         if (!canManageWhatsApp(req.user)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
-        res.json(getWhatsAppStatus());
+        const status = getWhatsAppStatus();
+        if (!status.connected && !status.qr && (status.state === 'idle' || status.state === 'error')) {
+            startWhatsApp().catch(() => {});
+        }
+        res.json(status);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

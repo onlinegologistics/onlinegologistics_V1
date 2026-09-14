@@ -2,15 +2,19 @@ const path = require('path');
 const fs = require('fs');
 const QRCode = require('qrcode');
 const pino = require('pino');
+const baileys = require('@whiskeysockets/baileys');
+const makeWASocket = baileys.default || baileys;
 const {
-    default: makeWASocket,
     useMultiFileAuthState,
     DisconnectReason,
-} = require('@whiskeysockets/baileys');
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore,
+    Browsers,
+} = baileys;
 
 const AUTH_FOLDER = path.join(__dirname, '..', 'wa-auth');
-const STARTUP_TIMEOUT_MS = Number(process.env.WHATSAPP_STARTUP_TIMEOUT_MS) || 30000;
-const RECONNECT_DELAY_MS = 5000;
+const STARTUP_TIMEOUT_MS = Number(process.env.WHATSAPP_STARTUP_TIMEOUT_MS) || 15000;
+const RECONNECT_DELAY_MS = 3000;
 
 let sock = null;
 let connected = false;
@@ -110,10 +114,45 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
 
     try {
         ({ state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER));
-        currentSocket = makeWASocket({
-            auth: state,
+
+        let version;
+        try {
+            if (typeof fetchLatestBaileysVersion === 'function') {
+                const versionData = await fetchLatestBaileysVersion();
+                version = versionData?.version;
+            }
+        } catch (vErr) {
+            console.warn('Could not fetch latest Baileys version:', vErr.message);
+        }
+
+        const socketOptions = {
+            auth: {
+                creds: state.creds,
+                keys: typeof makeCacheableSignalKeyStore === 'function'
+                    ? makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
+                    : state.keys,
+            },
             logger: pino({ level: 'silent' }),
-        });
+            printQRInTerminal: false,
+            syncFullHistory: false,
+            generateHighQualityLinkPreview: false,
+            defaultQueryTimeoutMs: 60000,
+            connectTimeoutMs: 60000,
+            keepAliveIntervalMs: 25000,
+            retryRequestDelayMs: 250,
+        };
+
+        if (version) {
+            socketOptions.version = version;
+        }
+
+        if (typeof Browsers !== 'undefined' && Browsers.ubuntu) {
+            socketOptions.browser = Browsers.ubuntu('Chrome');
+        } else {
+            socketOptions.browser = ['Ubuntu', 'Chrome', '20.0.04'];
+        }
+
+        currentSocket = makeWASocket(socketOptions);
     } catch (error) {
         const message = errorMessage(error);
         updateStatus('error', 'WhatsApp could not be started', message);
@@ -165,7 +204,7 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
                 sock = null;
 
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
-                const loggedOut = statusCode === DisconnectReason.loggedOut;
+                const loggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403;
                 const message = errorMessage(lastDisconnect?.error);
 
                 if (loggedOut) {
@@ -201,10 +240,15 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
             return;
         }
 
-        updateStatus(
-            'error',
-            'WhatsApp QR code could not be generated. Check the VPS internet connection and try again.'
-        );
+        // If no QR generated within timeout, attempt fresh start
+        startWhatsApp({ resetAuth: true }).catch((error) => {
+            const message = errorMessage(error);
+            console.error('WhatsApp fresh restart failed:', message);
+            updateStatus(
+                'error',
+                'WhatsApp QR code could not be generated. Check the VPS internet connection and try again.'
+            );
+        });
     }, STARTUP_TIMEOUT_MS);
 };
 
