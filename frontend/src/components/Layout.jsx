@@ -31,6 +31,7 @@ const getNavLinks = (role) => {
         { to: "/reports", label: "Reports", icon: BarChart3 },
         { to: "/complaints", label: "Complaints", icon: MessageSquareWarning },
         { to: "/agent-parcel-requests", label: "Parcels Requests", icon: PackageCheck },
+        { to: "/branch/mobile-users", label: "Mobile Users", icon: Smartphone },
         { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
       ];
     case "branch":
