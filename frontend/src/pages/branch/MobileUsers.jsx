@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import {
   Users,
@@ -21,11 +21,20 @@ import {
   Send,
   Trash2,
   Edit3,
+  PackageCheck,
+  CheckCircle2,
+  Clock,
+  Truck,
 } from "lucide-react";
 
-const MobileUsers = () => {
+const MobileUsers = ({ shipmentOnly = false }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isBranch = user?.role === "branch";
+  const isShipmentOnly = shipmentOnly || isBranch || location.pathname.includes("mobile-shipments");
+
   const config = useMemo(
     () => ({
       headers: { Authorization: `Bearer ${user?.token}` },
@@ -40,7 +49,13 @@ const MobileUsers = () => {
   const [loading, setLoading] = useState(true);
 
   // Active tab: 'users' | 'shipments' | 'enquiries' | 'complaints'
-  const [activeTab, setActiveTab] = useState("users");
+  const [activeTab, setActiveTab] = useState(isShipmentOnly ? "shipments" : "users");
+
+  useEffect(() => {
+    if (isShipmentOnly) {
+      setActiveTab("shipments");
+    }
+  }, [isShipmentOnly]);
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -174,18 +189,57 @@ const MobileUsers = () => {
     priorityFilter,
   ]);
 
+  const allShipmentsList = useMemo(() => {
+    let list = [];
+    users.forEach((u) => {
+      if (u.shipments && Array.isArray(u.shipments)) {
+        list.push(...u.shipments);
+      } else if (u.latestShipment) {
+        list.push(u.latestShipment);
+      }
+    });
+    return list
+      .filter(Boolean)
+      .filter(
+        (s) =>
+          s.deliveryAddress &&
+          s.deliveryAddress.trim() !== "" &&
+          s.deliveryAddress !== "N/A",
+      );
+  }, [users]);
+
   // Derived statistics
   const stats = useMemo(() => {
     const totalUsers = users.length;
-    const activeShipments = users.filter(u => u.latestShipment).length;
+    const activeShipments = allShipmentsList.length;
+    const inTransitShipments = allShipmentsList.filter(
+      (s) => (s.currentShipmentStatus || "").toLowerCase() === "in transit"
+    ).length;
+    const deliveredShipments = allShipmentsList.filter(
+      (s) => (s.currentShipmentStatus || "").toLowerCase() === "delivered"
+    ).length;
+    const pendingShipments = allShipmentsList.filter(
+      (s) =>
+        (s.currentShipmentStatus || "").toLowerCase() === "booked" ||
+        (s.currentShipmentStatus || "").toLowerCase() === "pending" ||
+        !s.currentShipmentStatus
+    ).length;
     const openEnquiries = enquiries.filter(
       (e) => e.status === "Open" || e.status === "In Progress",
     ).length;
     const openComplaints = complaints.filter(
       (c) => c.status === "Open" || c.status === "In Progress",
     ).length;
-    return { totalUsers, activeShipments, openEnquiries, openComplaints };
-  }, [users, enquiries, complaints]);
+    return {
+      totalUsers,
+      activeShipments,
+      inTransitShipments,
+      deliveredShipments,
+      pendingShipments,
+      openEnquiries,
+      openComplaints,
+    };
+  }, [users, allShipmentsList, enquiries, complaints]);
 
   // Filter calculations
   const filteredData = useMemo(() => {
@@ -202,24 +256,7 @@ const MobileUsers = () => {
         return matchesSearch && matchesStatus;
       });
     } else if (activeTab === "shipments") {
-      let allShipments = [];
-      users.forEach((u) => {
-        if (u.shipments && Array.isArray(u.shipments)) {
-          allShipments.push(...u.shipments);
-        } else if (u.latestShipment) {
-          allShipments.push(u.latestShipment);
-        }
-      });
-      const shipments = allShipments
-        .filter(Boolean)
-        // Only include shipments that have a valid deliveryAddress
-        .filter(
-          (s) =>
-            s.deliveryAddress &&
-            s.deliveryAddress.trim() !== "" &&
-            s.deliveryAddress !== "N/A",
-        );
-      return shipments.filter((s) => {
+      return allShipmentsList.filter((s) => {
         const matchesSearch =
           (s.customerName || "")
             .toLowerCase()
@@ -507,11 +544,12 @@ const MobileUsers = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden pb-4 border-b border-slate-100">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
-            Mobile Users Hub
+            {isShipmentOnly ? "Mobile Users Shipment Report" : "Mobile Users Hub"}
           </h1>
           <p className="text-slate-500 text-sm mt-1 font-medium">
-            Directory & operations dashboard for mobile users, shipments,
-            enquiries, and complaints
+            {isShipmentOnly
+              ? "Live consignment tracking, delivery reports, and operations dashboard for mobile user bookings"
+              : "Directory & operations dashboard for mobile users, shipments, enquiries, and complaints"}
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -545,158 +583,286 @@ const MobileUsers = () => {
       </div>
 
       {/* Statistics Cards - Premium gradient cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4">
-        {/* Total Mobile Users */}
-        <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-violet-600 to-purple-700 text-white">
-          <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
-          <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
-                <Users size={16} className="text-white" />
+      {isShipmentOnly ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4">
+          {/* Total Shipments */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-indigo-600 to-purple-700 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <Smartphone size={16} className="text-white" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
+                  CONSIGNMENTS
+                </span>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
-                REGISTERED
-              </span>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                Total Shipments
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.activeShipments}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-white/60 rounded-full" style={{ width: "100%" }} />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                All mobile user shipments
+              </p>
             </div>
-            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
-              Total Mobile Users
-            </p>
-            <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
-              {stats.totalUsers}
-            </h3>
-            <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-white/60 rounded-full"
-                style={{ width: "100%" }}
-              />
-            </div>
-            <p className="text-white/50 text-[9px] font-semibold mt-1">
-              All registered customers
-            </p>
           </div>
-        </div>
 
-        {/* Active Shipments */}
-        <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
-          <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
-          <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
-                <TrendingUp size={16} className="text-white" />
+          {/* In Transit */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <TrendingUp size={16} className="text-white" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
+                  IN TRANSIT
+                </span>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
-                ACTIVE
-              </span>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                In Transit
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.inTransitShipments}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/60 rounded-full"
+                  style={{
+                    width: stats.activeShipments > 0 ? `${(stats.inTransitShipments / stats.activeShipments) * 100}%` : "0%",
+                  }}
+                />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                Consignments on move
+              </p>
             </div>
-            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
-              Active Shipments
-            </p>
-            <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
-              {stats.activeShipments}
-            </h3>
-            <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-white/60 rounded-full"
-                style={{
-                  width:
-                    stats.totalUsers > 0
-                      ? `${Math.min((stats.activeShipments / stats.totalUsers) * 100, 100)}%`
-                      : "0%",
-                }}
-              />
-            </div>
-            <p className="text-white/50 text-[9px] font-semibold mt-1">
-              Orders in pipeline
-            </p>
           </div>
-        </div>
 
-        {/* Open Enquiries */}
-        <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-sky-500 to-blue-600 text-white">
-          <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
-          <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
-                <MessageSquare size={16} className="text-white" />
+          {/* Delivered */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-blue-500 to-cyan-600 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <PackageCheck size={16} className="text-white" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
+                  COMPLETED
+                </span>
               </div>
-              <span
-                className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${stats.openEnquiries > 0 ? "bg-amber-400/30 text-amber-100 border-amber-300/30 animate-pulse" : "bg-white/15 text-white/90 border-white/20"}`}
-              >
-                {stats.openEnquiries > 0 ? "PENDING" : "ALL CLEAR"}
-              </span>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                Delivered
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.deliveredShipments}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/60 rounded-full"
+                  style={{
+                    width: stats.activeShipments > 0 ? `${(stats.deliveredShipments / stats.activeShipments) * 100}%` : "0%",
+                  }}
+                />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                Successfully delivered
+              </p>
             </div>
-            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
-              Open Enquiries
-            </p>
-            <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
-              {stats.openEnquiries}
-            </h3>
-            <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-amber-300/80 rounded-full transition-all duration-700"
-                style={{
-                  width:
-                    enquiries.length > 0
-                      ? `${Math.min((stats.openEnquiries / enquiries.length) * 100, 100)}%`
-                      : "0%",
-                }}
-              />
-            </div>
-            <p className="text-white/50 text-[9px] font-semibold mt-1">
-              {enquiries.length} total enquiries
-            </p>
           </div>
-        </div>
 
-        {/* Open Complaints */}
-        <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-rose-500 to-red-600 text-white">
-          <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
-          <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
-                <AlertCircle size={16} className="text-white" />
+          {/* Booked / Pending */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <Clock size={16} className="text-white" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
+                  PENDING
+                </span>
               </div>
-              <span
-                className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${stats.openComplaints > 0 ? "bg-amber-400/30 text-amber-100 border-amber-300/30 animate-pulse" : "bg-white/15 text-white/90 border-white/20"}`}
-              >
-                {stats.openComplaints > 0 ? "NEEDS ACTION" : "ALL CLEAR"}
-              </span>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                Booked / Pending
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.pendingShipments}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/60 rounded-full"
+                  style={{
+                    width: stats.activeShipments > 0 ? `${(stats.pendingShipments / stats.activeShipments) * 100}%` : "0%",
+                  }}
+                />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                Awaiting dispatch
+              </p>
             </div>
-            <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
-              Open Complaints
-            </p>
-            <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
-              {stats.openComplaints}
-            </h3>
-            <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-amber-300/80 rounded-full transition-all duration-700"
-                style={{
-                  width:
-                    complaints.length > 0
-                      ? `${Math.min((stats.openComplaints / complaints.length) * 100, 100)}%`
-                      : "0%",
-                }}
-              />
-            </div>
-            <p className="text-white/50 text-[9px] font-semibold mt-1">
-              {complaints.length} total complaints
-            </p>
           </div>
         </div>
-      </div>
-      {/* Decorative circle blob */}
-      <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full bg-white/10 blur-xl" />
-      <div className="absolute bottom-0 right-0 w-32 h-16 rounded-tl-full bg-black/10" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4">
+          {/* Total Mobile Users */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-violet-600 to-purple-700 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <Users size={16} className="text-white" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
+                  REGISTERED
+                </span>
+              </div>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                Total Mobile Users
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.totalUsers}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/60 rounded-full"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                All registered customers
+              </p>
+            </div>
+          </div>
+
+          {/* Active Shipments */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <TrendingUp size={16} className="text-white" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 text-white/90 px-2 py-0.5 rounded-full border border-white/20">
+                  ACTIVE
+                </span>
+              </div>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                Active Shipments
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.activeShipments}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/60 rounded-full"
+                  style={{
+                    width:
+                      stats.totalUsers > 0
+                        ? `${Math.min((stats.activeShipments / stats.totalUsers) * 100, 100)}%`
+                        : "0%",
+                  }}
+                />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                Orders in pipeline
+              </p>
+            </div>
+          </div>
+
+          {/* Open Enquiries */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-sky-500 to-blue-600 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <MessageSquare size={16} className="text-white" />
+                </div>
+                <span
+                  className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${stats.openEnquiries > 0 ? "bg-amber-400/30 text-amber-100 border-amber-300/30 animate-pulse" : "bg-white/15 text-white/90 border-white/20"}`}
+                >
+                  {stats.openEnquiries > 0 ? "PENDING" : "ALL CLEAR"}
+                </span>
+              </div>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                Open Enquiries
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.openEnquiries}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-300/80 rounded-full transition-all duration-700"
+                  style={{
+                    width:
+                      enquiries.length > 0
+                        ? `${Math.min((stats.openEnquiries / enquiries.length) * 100, 100)}%`
+                        : "0%",
+                  }}
+                />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                {enquiries.length} total enquiries
+              </p>
+            </div>
+          </div>
+
+          {/* Open Complaints */}
+          <div className="relative overflow-hidden rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 cursor-default bg-gradient-to-br from-rose-500 to-red-600 text-white">
+            <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-white/10 blur-lg" />
+            <div className="absolute bottom-0 right-0 w-20 h-10 rounded-tl-full bg-black/10" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="bg-white/15 backdrop-blur-sm p-2 rounded-lg border border-white/20">
+                  <AlertCircle size={16} className="text-white" />
+                </div>
+                <span
+                  className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${stats.openComplaints > 0 ? "bg-amber-400/30 text-amber-100 border-amber-300/30 animate-pulse" : "bg-white/15 text-white/90 border-white/20"}`}
+                >
+                  {stats.openComplaints > 0 ? "NEEDS ACTION" : "ALL CLEAR"}
+                </span>
+              </div>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                Open Complaints
+              </p>
+              <h3 className="text-2xl font-black mt-0.5 leading-none text-white">
+                {stats.openComplaints}
+              </h3>
+              <div className="mt-3 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-300/80 rounded-full transition-all duration-700"
+                  style={{
+                    width:
+                      complaints.length > 0
+                        ? `${Math.min((stats.openComplaints / complaints.length) * 100, 100)}%`
+                        : "0%",
+                  }}
+                />
+              </div>
+              <p className="text-white/50 text-[9px] font-semibold mt-1">
+                {complaints.length} total complaints
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Print Header */}
       <div className="hidden print:block border-b pb-4 mb-4">
         <h1 className="text-2xl font-bold text-center">
-          Mobile Users Hub Report
+          {isShipmentOnly ? "Mobile Users Shipment Report" : "Mobile Users Hub Report"}
         </h1>
         <p className="text-sm text-center text-gray-500">
           Generated on: {new Date().toLocaleString()} | Active Tab:{" "}
@@ -704,57 +870,59 @@ const MobileUsers = () => {
         </p>
       </div>
 
-      {/* Tabs - Styled in Modern Light theme */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-sm border border-slate-100 flex flex-wrap gap-1 print:hidden">
-        <button
-          onClick={() => setActiveTab("users")}
-          className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "users" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
-        >
-          <Users size={16} />
-          <span>Users Directory</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "users" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+      {/* Tabs - Only shown when NOT in shipmentOnly mode */}
+      {!isShipmentOnly && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-sm border border-slate-100 flex flex-wrap gap-1 print:hidden">
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "users" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
           >
-            {users.length}
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("shipments")}
-          className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "shipments" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
-        >
-          <Smartphone size={16} />
-          <span>Shipment Reports</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "shipments" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+            <Users size={16} />
+            <span>Users Directory</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "users" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+            >
+              {users.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("shipments")}
+            className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "shipments" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
           >
-            {stats.activeShipments}
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("enquiries")}
-          className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "enquiries" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
-        >
-          <MessageSquare size={16} />
-          <span>User Enquiries</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "enquiries" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+            <Smartphone size={16} />
+            <span>Shipment Reports</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "shipments" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+            >
+              {stats.activeShipments}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("enquiries")}
+            className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "enquiries" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
           >
-            {enquiries.length}
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("complaints")}
-          className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "complaints" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
-        >
-          <AlertCircle size={16} />
-          <span>User Complaints</span>
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "complaints" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+            <MessageSquare size={16} />
+            <span>User Enquiries</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "enquiries" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+            >
+              {enquiries.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("complaints")}
+            className={`flex-1 min-w-[120px] py-3 rounded-xl font-bold text-sm transition duration-200 flex items-center justify-center gap-2 ${activeTab === "complaints" ? "bg-purple-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50/85 hover:text-slate-800"}`}
           >
-            {complaints.length}
-          </span>
-        </button>
-      </div>
+            <AlertCircle size={16} />
+            <span>User Complaints</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-black ${activeTab === "complaints" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}
+            >
+              {complaints.length}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar — inline search + pill tabs */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 print:hidden">

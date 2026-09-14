@@ -58,6 +58,7 @@ function App() {
                             <Route path="/parcel-requests" element={<ParcelRequests />} />
                             <Route path="/agent-parcel-requests" element={<AgentParcelRequests />} />
                             <Route path="/branch/mobile-users" element={<MobileUsers />} />
+                            <Route path="/branch/mobile-shipments" element={<MobileUsers shipmentOnly={true} />} />
                             <Route path="/branch/shipments/:id/manage" element={<MobileShipmentManage />} />
                             <Route path="/profile" element={<Profile />} />
                         </Route>
