@@ -146,50 +146,137 @@ const getMobileUsers = asyncHandler(async (req, res) => {
     // We fetch all records, and since we use .lean(), we get all fields present in the database.
     const allRecords = await MobileShipment.find({}).sort({ createdAt: -1 }).lean();
 
+    // Also fetch all parcel requests from 'parcelrequests' collection
+    const allParcels = await ParcelRequest.find({}).sort({ createdAt: -1 }).lean();
+
     const userProfiles = new Map();
     const userShipments = new Map();
 
-    // Separate records into user profiles and shipments
+    // Separate records into user profiles and extract all embedded/top-level shipments
     allRecords.forEach(record => {
-        const mobile = record.mobileNumber || record.mobile || 'N/A';
+        const mobile = String(record.mobileNumber || record.mobile || (record._id ? record._id.toString() : 'N/A')).trim();
         if (mobile === 'N/A') return;
 
-        const hasShipment = record.deliveryAddress && record.deliveryAddress.trim() !== '';
-
-        if (hasShipment) {
-            // It's a shipment record. Store all shipments in an array.
-            if (!userShipments.has(mobile)) {
-                userShipments.set(mobile, []);
-            }
-            userShipments.get(mobile).push(record);
+        // Store or update user profile info
+        if (!userProfiles.has(mobile)) {
+            userProfiles.set(mobile, record);
         } else {
-            // It's likely a user profile record (or a shipment missing delivery address).
-            // We want the profile that has address/email info.
-            if (!userProfiles.has(mobile)) {
-                userProfiles.set(mobile, record);
+            const existing = userProfiles.get(mobile);
+            if ((!existing.email && record.email) || (!existing.address && record.address)) {
+                userProfiles.set(mobile, { ...existing, ...record });
+            }
+        }
+
+        // Initialize user shipment list if not present
+        if (!userShipments.has(mobile)) {
+            userShipments.set(mobile, []);
+        }
+
+        const existingShipments = userShipments.get(mobile);
+
+        // 1. If record.shipments contains an array of shipment subdocuments
+        if (Array.isArray(record.shipments) && record.shipments.length > 0) {
+            record.shipments.forEach(s => {
+                const sTracking = s.trackingId || (s.parcelRequestId ? s.parcelRequestId.toString() : null) || (s._id ? s._id.toString() : null);
+                const isDup = existingShipments.some(e => {
+                    const eTracking = e.trackingId || (e.parcelRequestId ? e.parcelRequestId.toString() : null) || (e._id ? e._id.toString() : null);
+                    return eTracking && sTracking && eTracking === sTracking;
+                });
+                if (!isDup) {
+                    existingShipments.push({ ...s, parentUserId: record._id });
+                }
+            });
+        }
+
+        // 2. If record has top-level shipment details, and it's not already in existingShipments
+        if (record.deliveryAddress && record.deliveryAddress.trim() !== '' && record.deliveryAddress !== 'N/A') {
+            const rTracking = record.trackingId || (record.parcelRequestId ? record.parcelRequestId.toString() : null) || (record._id ? record._id.toString() : null);
+            const isDup = existingShipments.some(e => {
+                const eTracking = e.trackingId || (e.parcelRequestId ? e.parcelRequestId.toString() : null) || (e._id ? e._id.toString() : null);
+                return eTracking && rTracking && eTracking === rTracking;
+            });
+            if (!isDup) {
+                existingShipments.push({ ...record, parentUserId: record._id });
+            }
+        }
+    });
+
+    // 3. Merge all ParcelRequest documents into the matching user's shipments
+    allParcels.forEach(pr => {
+        let matchedMobile = null;
+        const prCustId = pr.customer ? pr.customer.toString() : null;
+        const prMobile = pr.mobileNumber ? String(pr.mobileNumber).trim() : null;
+
+        for (const [mobile, profile] of userProfiles.entries()) {
+            const pId = profile._id ? profile._id.toString() : null;
+            const pMobile = String(profile.mobile || profile.mobileNumber || '').trim();
+            if ((prCustId && pId && prCustId === pId) || (prMobile && pMobile && prMobile === pMobile)) {
+                matchedMobile = mobile;
+                break;
+            }
+        }
+
+        if (matchedMobile) {
+            if (!userShipments.has(matchedMobile)) {
+                userShipments.set(matchedMobile, []);
+            }
+            const existing = userShipments.get(matchedMobile);
+            const prTracking = pr.trackingId || (pr._id ? pr._id.toString() : null);
+            const prId = pr._id ? pr._id.toString() : null;
+
+            // Determine accurate status from pr
+            let accurateStatus = 'Pickup Pending';
+            if (pr.status && pr.status !== 'Pending') {
+                accurateStatus = pr.status;
+            } else if (pr.currentStatus && pr.currentStatus !== 'Pending') {
+                accurateStatus = pr.currentStatus;
+            } else if (Array.isArray(pr.trackingHistory) && pr.trackingHistory.length > 0) {
+                const lastH = pr.trackingHistory[pr.trackingHistory.length - 1];
+                if (lastH && lastH.status && lastH.status !== 'Pending') {
+                    accurateStatus = lastH.status;
+                }
+            }
+
+            const existingIndex = existing.findIndex(e => {
+                const eTracking = e.trackingId || (e.parcelRequestId ? e.parcelRequestId.toString() : null) || (e._id ? e._id.toString() : null);
+                const eParcelId = e.parcelRequestId ? e.parcelRequestId.toString() : (e._id ? e._id.toString() : null);
+                return (eTracking && prTracking && eTracking === prTracking) || (eParcelId && prId && eParcelId === prId);
+            });
+
+            if (existingIndex === -1) {
+                existing.push({
+                    ...pr,
+                    parcelRequestId: pr._id,
+                    currentStatus: accurateStatus,
+                    currentShipmentStatus: accurateStatus,
+                    status: accurateStatus,
+                    createdAt: pr.createdAt || new Date(),
+                    parentUserId: userProfiles.get(matchedMobile)?._id
+                });
             } else {
-                // If we already have a profile, check if this one has more info (e.g. email or address)
-                const existing = userProfiles.get(mobile);
-                if ((!existing.email && record.email) || (!existing.address && record.address)) {
-                     // Merge info
-                     userProfiles.set(mobile, { ...existing, ...record });
+                const e = existing[existingIndex];
+                if (accurateStatus !== 'Pickup Pending' || !e.currentStatus || e.currentStatus === 'Pending') {
+                    e.currentStatus = accurateStatus;
+                    e.currentShipmentStatus = accurateStatus;
+                    e.status = accurateStatus;
+                }
+                if (pr.createdAt) {
+                    e.createdAt = pr.createdAt;
                 }
             }
         }
     });
 
     const uniqueUsersMap = new Map();
-
-    // Collect all unique mobile numbers from both maps
     const allMobiles = new Set([...userProfiles.keys(), ...userShipments.keys()]);
 
     allMobiles.forEach(mobile => {
         const profile = userProfiles.get(mobile) || {};
-        const shipments = userShipments.get(mobile) || [];
-        
-        // Find a fallback address from shipments if profile lacks it
+        const rawShipments = userShipments.get(mobile) || [];
+
+        // Find fallback address from shipments if profile lacks it
         let fallbackAddress = 'N/A';
-        for (const s of shipments) {
+        for (const s of rawShipments) {
             if (s.pickupAddress && s.pickupAddress.trim() !== '' && s.pickupAddress !== 'N/A') {
                 fallbackAddress = s.pickupAddress;
                 break;
@@ -199,57 +286,83 @@ const getMobileUsers = asyncHandler(async (req, res) => {
             }
         }
 
-        const latestS = shipments.length > 0 ? shipments[0] : null;
+        // Map shipments with full details
+        const mappedShipments = rawShipments.map(s => {
+            const sId = s._id ? s._id.toString() : (s.trackingId || 'N/A');
+            const trackingId = s.trackingId || s.lrNumber || (s.parcelRequestId ? s.parcelRequestId.toString() : sId);
 
-        uniqueUsersMap.set(mobile, {
-            _id: profile._id || (latestS ? latestS._id : null),
-            name: profile.name || profile.customerName || (latestS ? (latestS.customerName || latestS.name) : 'N/A') || 'N/A',
-            email: profile.email || (latestS ? latestS.email : null) || 'N/A',
-            mobile: mobile,
-            altMobile: profile.altMobile || (latestS ? latestS.altMobile : '') || '',
-            address: (profile.address && profile.address !== 'N/A') ? profile.address : 
-                     (profile.pickupAddress && profile.pickupAddress !== 'N/A') ? profile.pickupAddress : fallbackAddress,
-            isActive: profile.isActive !== undefined ? profile.isActive : (latestS && latestS.isActive !== undefined ? latestS.isActive : true),
-            createdAt: profile.createdAt || (latestS ? latestS.createdAt : new Date()),
-            
-            // Map all shipments
-            shipments: shipments.map(s => ({
-                trackingId: s._id.toString(),
-                lrNumber: s.trackingId || s.parcelRequestId || s._id.toString().substring(18).toUpperCase(),
-                customerName: s.customerName || s.name || profile.name || 'N/A',
-                mobileNumber: mobile,
-                pickupCity: s.pickupCity || 'Pune',
-                pickupAddress: s.pickupAddress || profile.address || 'N/A',
-                deliveryCity: s.deliveryCity || 'Latur',
-                deliveryAddress: s.deliveryAddress,
+            // Resolve unambiguous, accurate status (never generic 'Pending')
+            let finalStatus = 'Pickup Pending';
+            if (s.status && s.status !== 'Pending') {
+                finalStatus = s.status;
+            } else if (s.currentStatus && s.currentStatus !== 'Pending') {
+                finalStatus = s.currentStatus;
+            } else if (s.currentShipmentStatus && s.currentShipmentStatus !== 'Pending') {
+                finalStatus = s.currentShipmentStatus;
+            } else if (Array.isArray(s.trackingHistory) && s.trackingHistory.length > 0) {
+                const lastHist = s.trackingHistory[s.trackingHistory.length - 1];
+                if (lastHist && lastHist.status && lastHist.status !== 'Pending') {
+                    finalStatus = lastHist.status;
+                }
+            }
+
+            // Accurate creation date: NEVER fallback to user account registration date
+            let accurateCreatedAt = s.createdAt;
+            if (s.trackingHistory && s.trackingHistory.length > 0 && s.trackingHistory[0].dateTime) {
+                if (!accurateCreatedAt || String(accurateCreatedAt) === String(profile.createdAt)) {
+                    accurateCreatedAt = s.trackingHistory[0].dateTime;
+                }
+            }
+            if (!accurateCreatedAt) {
+                accurateCreatedAt = new Date();
+            }
+
+            return {
+                _id: sId,
+                trackingId: trackingId,
+                lrNumber: s.lrNumber || s.trackingId || (s.parcelRequestId ? s.parcelRequestId.toString() : sId),
+                customerName: s.customerName || profile.name || profile.customerName || 'N/A',
+                mobileNumber: s.mobileNumber || profile.mobile || profile.mobileNumber || mobile,
+                email: profile.email || 'N/A',
+                pickupCity: s.pickupCity || profile.address || 'Pune',
+                pickupAddress: s.pickupAddress || profile.address || profile.pickupAddress || 'N/A',
+                deliveryCity: s.deliveryCity || 'N/A',
+                deliveryAddress: s.deliveryAddress || 'N/A',
                 parcelType: s.parcelType || s.packageDescription || 'Package',
-                transportType: s.transportType || 'Road',
+                transportType: s.transportType || 'STANDARD',
                 weight: s.weight || 0,
                 quantity: s.quantity || 1,
-                expectedDeliveryDate: s.expectedDeliveryDate,
-                currentShipmentStatus: s.currentStatus || 'Pending',
-                currentBranch: s.currentBranch || (req.user ? req.user.name : 'Branch Hub'),
-                currentLocation: s.currentLocation || s.pickupAddress || 'N/A'
-            })),
-            // Still keep latestShipment for backwards compatibility in UI if needed anywhere
-            latestShipment: latestS ? {
-                trackingId: latestS._id.toString(),
-                lrNumber: latestS.trackingId || latestS.parcelRequestId || latestS._id.toString().substring(18).toUpperCase(),
-                customerName: latestS.customerName || latestS.name || profile.name || 'N/A',
-                mobileNumber: mobile,
-                pickupCity: latestS.pickupCity || 'Pune',
-                pickupAddress: latestS.pickupAddress || profile.address || 'N/A',
-                deliveryCity: latestS.deliveryCity || 'Latur',
-                deliveryAddress: latestS.deliveryAddress,
-                parcelType: latestS.parcelType || latestS.packageDescription || 'Package',
-                transportType: latestS.transportType || 'Road',
-                weight: latestS.weight || 0,
-                quantity: latestS.quantity || 1,
-                expectedDeliveryDate: latestS.expectedDeliveryDate,
-                currentShipmentStatus: latestS.currentStatus || 'Pending',
-                currentBranch: latestS.currentBranch || (req.user ? req.user.name : 'Branch Hub'),
-                currentLocation: latestS.currentLocation || latestS.pickupAddress || 'N/A'
-            } : null
+                remarks: s.remarks || '',
+                expectedDeliveryDate: s.expectedDeliveryDate || null,
+                currentShipmentStatus: finalStatus,
+                currentStatus: finalStatus,
+                status: finalStatus,
+                currentBranch: s.currentBranch || 'Central Hub',
+                currentLocation: s.currentLocation || s.pickupAddress || 'N/A',
+                trackingHistory: s.trackingHistory || [],
+                createdAt: accurateCreatedAt,
+                userId: profile._id ? profile._id.toString() : (s.parentUserId ? s.parentUserId.toString() : null)
+            };
+        });
+
+        // Sort user's shipments newest first
+        mappedShipments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        const latestS = mappedShipments.length > 0 ? mappedShipments[0] : null;
+
+        uniqueUsersMap.set(mobile, {
+            _id: profile._id || (latestS ? latestS.userId || latestS._id : null),
+            name: profile.name || profile.customerName || (latestS ? (latestS.customerName || latestS.name) : 'N/A') || 'N/A',
+            username: profile.username || profile.email || '',
+            email: profile.email || (latestS ? latestS.email : null) || 'N/A',
+            mobile: mobile,
+            altMobile: profile.altMobile || '',
+            address: (profile.address && profile.address !== 'N/A') ? profile.address : 
+                     (profile.pickupAddress && profile.pickupAddress !== 'N/A') ? profile.pickupAddress : fallbackAddress,
+            isActive: profile.isActive !== undefined ? profile.isActive : true,
+            createdAt: profile.createdAt || (latestS ? latestS.createdAt : new Date()),
+            shipments: mappedShipments,
+            latestShipment: latestS
         });
     });
 
@@ -257,7 +370,7 @@ const getMobileUsers = asyncHandler(async (req, res) => {
 
     // Sort overall list by joined date descending
     usersList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
+
     res.json(usersList);
 });
 
@@ -470,23 +583,47 @@ const deleteComplaint = asyncHandler(async (req, res) => {
     res.json({ message: 'Complaint deleted successfully' });
 });
 
+// @desc    Update mobile user shipment details and status
+// @route   PUT /api/mobile-users/shipments/:id
+// @access  Private (Branch/Admin)
 const updateMobileShipment = asyncHandler(async (req, res) => {
     const mongoose = require('mongoose');
-    const query = {};
-    if (mongoose.isValidObjectId(req.params.id)) {
-        query.$or = [
-            { _id: req.params.id },
-            { trackingId: req.params.id },
-            { customer: req.params.id },
-            { parcelRequestId: req.params.id }
-        ];
+    const id = req.params.id;
+
+    const queryConditions = [
+        { 'shipments.trackingId': id },
+        { 'shipments.lrNumber': id },
+        { trackingId: id },
+        { lrNumber: id }
+    ];
+
+    if (mongoose.isValidObjectId(id)) {
+        const objId = new mongoose.Types.ObjectId(id);
+        queryConditions.push({ 'shipments._id': objId });
+        queryConditions.push({ 'shipments.parcelRequestId': objId });
+        queryConditions.push({ _id: objId });
+        queryConditions.push({ parcelRequestId: objId });
+        queryConditions.push({ customer: objId });
     } else {
-        query.trackingId = req.params.id;
+        queryConditions.push({ 'shipments.parcelRequestId': id });
+        queryConditions.push({ parcelRequestId: id });
     }
 
-    const shipment = await MobileShipment.findOne(query);
+    let userDoc = await MobileShipment.findOne({ $or: queryConditions });
 
-    if (!shipment) {
+    // Also look up ParcelRequest
+    const prQuery = [
+        { trackingId: id },
+        { lrNumber: id }
+    ];
+    if (mongoose.isValidObjectId(id)) {
+        const objId = new mongoose.Types.ObjectId(id);
+        prQuery.push({ _id: objId });
+        prQuery.push({ parcelRequestId: objId });
+    }
+    const prDoc = await ParcelRequest.findOne({ $or: prQuery });
+
+    if (!userDoc && !prDoc) {
         res.status(404);
         throw new Error('Shipment not found');
     }
@@ -510,43 +647,146 @@ const updateMobileShipment = asyncHandler(async (req, res) => {
         deliveryAddress
     } = req.body;
 
-    const oldStatus = shipment.currentStatus;
-
-    if (currentStatus !== undefined) shipment.currentStatus = currentStatus;
-    if (currentLocation !== undefined) shipment.currentLocation = currentLocation;
-    if (currentBranch !== undefined) shipment.currentBranch = currentBranch;
-    if (remarks !== undefined) shipment.remarks = remarks;
-    if (expectedDeliveryDate !== undefined) shipment.expectedDeliveryDate = expectedDeliveryDate;
-    if (assignedStaff !== undefined) shipment.assignedStaff = assignedStaff;
-    if (transportType !== undefined) shipment.transportType = transportType;
-    if (weight !== undefined) shipment.weight = weight;
-    if (quantity !== undefined) shipment.quantity = quantity;
-    if (parcelType !== undefined) shipment.parcelType = parcelType;
-    if (customerName !== undefined) shipment.customerName = customerName;
-    if (mobileNumber !== undefined) shipment.mobileNumber = mobileNumber;
-    if (pickupCity !== undefined) shipment.pickupCity = pickupCity;
-    if (deliveryCity !== undefined) shipment.deliveryCity = deliveryCity;
-    if (pickupAddress !== undefined) shipment.pickupAddress = pickupAddress;
-    if (deliveryAddress !== undefined) shipment.deliveryAddress = deliveryAddress;
-
-    // If status changed, push a new checkpoint to trackingHistory
-    if (currentStatus !== undefined && currentStatus !== oldStatus) {
-        if (!shipment.trackingHistory) {
-            shipment.trackingHistory = [];
+    // 1. If found in ParcelRequest, update ParcelRequest document
+    if (prDoc) {
+        if (currentStatus !== undefined) {
+            prDoc.status = currentStatus;
+            prDoc.currentStatus = currentStatus;
         }
-        shipment.trackingHistory.push({
-            status: currentStatus,
-            location: currentLocation || shipment.currentLocation || 'Branch Hub',
-            branchName: currentBranch || shipment.currentBranch || req.user.name,
-            remark: remarks || `Shipment status updated to ${currentStatus}`,
-            updatedBy: req.user.name,
-            dateTime: new Date()
-        });
+        if (currentLocation !== undefined) prDoc.currentLocation = currentLocation;
+        if (currentBranch !== undefined) prDoc.currentBranch = currentBranch;
+        if (remarks !== undefined) prDoc.remarks = remarks;
+        if (expectedDeliveryDate !== undefined) prDoc.expectedDeliveryDate = expectedDeliveryDate;
+        if (assignedStaff !== undefined) prDoc.assignedStaff = assignedStaff;
+        if (transportType !== undefined) prDoc.transportType = transportType;
+        if (weight !== undefined) prDoc.weight = weight;
+        if (quantity !== undefined) prDoc.quantity = quantity;
+        if (parcelType !== undefined) prDoc.parcelType = parcelType;
+        if (customerName !== undefined) prDoc.customerName = customerName;
+        if (mobileNumber !== undefined) prDoc.mobileNumber = mobileNumber;
+        if (pickupCity !== undefined) prDoc.pickupCity = pickupCity;
+        if (deliveryCity !== undefined) prDoc.deliveryCity = deliveryCity;
+        if (pickupAddress !== undefined) prDoc.pickupAddress = pickupAddress;
+        if (deliveryAddress !== undefined) prDoc.deliveryAddress = deliveryAddress;
+
+        if (currentStatus !== undefined) {
+            if (!Array.isArray(prDoc.trackingHistory)) prDoc.trackingHistory = [];
+            prDoc.trackingHistory.push({
+                status: currentStatus,
+                location: currentLocation || prDoc.currentLocation || 'Branch Hub',
+                branchName: currentBranch || prDoc.currentBranch || (req.user ? req.user.name : 'Branch Hub'),
+                remark: remarks || `Shipment status updated to ${currentStatus}`,
+                updatedBy: req.user ? req.user.name : 'Operator',
+                dateTime: new Date()
+            });
+        }
+        await prDoc.save();
     }
 
-    await shipment.save();
+    // 2. If found in MobileShipment, update MobileShipment document
+    if (userDoc) {
+        let targetIndex = -1;
+        if (userDoc.shipments && Array.isArray(userDoc.shipments)) {
+            targetIndex = userDoc.shipments.findIndex(s =>
+                (s._id && s._id.toString() === id) ||
+                (s.trackingId && s.trackingId === id) ||
+                (s.lrNumber && s.lrNumber === id) ||
+                (s.parcelRequestId && s.parcelRequestId.toString() === id)
+            );
+        }
 
-    res.json(shipment);
+        if (targetIndex !== -1) {
+            const target = userDoc.shipments[targetIndex];
+            const oldStatus = target.currentStatus || target.currentShipmentStatus;
+
+            if (currentStatus !== undefined) {
+                target.currentStatus = currentStatus;
+                target.currentShipmentStatus = currentStatus;
+            }
+            if (currentLocation !== undefined) target.currentLocation = currentLocation;
+            if (currentBranch !== undefined) target.currentBranch = currentBranch;
+            if (remarks !== undefined) target.remarks = remarks;
+            if (expectedDeliveryDate !== undefined) target.expectedDeliveryDate = expectedDeliveryDate;
+            if (assignedStaff !== undefined) target.assignedStaff = assignedStaff;
+            if (transportType !== undefined) target.transportType = transportType;
+            if (weight !== undefined) target.weight = weight;
+            if (quantity !== undefined) target.quantity = quantity;
+            if (parcelType !== undefined) target.parcelType = parcelType;
+            if (customerName !== undefined) target.customerName = customerName;
+            if (mobileNumber !== undefined) target.mobileNumber = mobileNumber;
+            if (pickupCity !== undefined) target.pickupCity = pickupCity;
+            if (deliveryCity !== undefined) target.deliveryCity = deliveryCity;
+            if (pickupAddress !== undefined) target.pickupAddress = pickupAddress;
+            if (deliveryAddress !== undefined) target.deliveryAddress = deliveryAddress;
+
+            if (currentStatus !== undefined && currentStatus !== oldStatus) {
+                if (!target.trackingHistory) target.trackingHistory = [];
+                target.trackingHistory.push({
+                    status: currentStatus,
+                    location: currentLocation || target.currentLocation || 'Branch Hub',
+                    branchName: currentBranch || target.currentBranch || (req.user ? req.user.name : 'Branch Hub'),
+                    remark: remarks || `Shipment status updated to ${currentStatus}`,
+                    updatedBy: req.user ? req.user.name : 'Operator',
+                    dateTime: new Date()
+                });
+            }
+
+            if (userDoc.trackingId === target.trackingId || (target._id && userDoc.trackingId === target._id.toString())) {
+                if (currentStatus !== undefined) userDoc.currentStatus = currentStatus;
+                if (currentLocation !== undefined) userDoc.currentLocation = currentLocation;
+                if (currentBranch !== undefined) userDoc.currentBranch = currentBranch;
+            }
+
+            userDoc.markModified('shipments');
+            await userDoc.save();
+
+            const responseObj = (typeof target.toObject === 'function') ? target.toObject() : { ...target };
+            responseObj.customerName = responseObj.customerName || userDoc.name || userDoc.customerName;
+            responseObj.mobileNumber = responseObj.mobileNumber || userDoc.mobile || userDoc.mobileNumber;
+            responseObj.currentStatus = target.currentStatus || target.currentShipmentStatus;
+            responseObj.currentShipmentStatus = target.currentShipmentStatus || target.currentStatus;
+            responseObj.userId = userDoc._id;
+            responseObj.customer = userDoc._id;
+            return res.json(responseObj);
+        }
+
+        // Top-level update
+        const oldStatus = userDoc.currentStatus;
+        if (currentStatus !== undefined) userDoc.currentStatus = currentStatus;
+        if (currentLocation !== undefined) userDoc.currentLocation = currentLocation;
+        if (currentBranch !== undefined) userDoc.currentBranch = currentBranch;
+        if (remarks !== undefined) userDoc.remarks = remarks;
+        if (expectedDeliveryDate !== undefined) userDoc.expectedDeliveryDate = expectedDeliveryDate;
+        if (assignedStaff !== undefined) userDoc.assignedStaff = assignedStaff;
+        if (transportType !== undefined) userDoc.transportType = transportType;
+        if (weight !== undefined) userDoc.weight = weight;
+        if (quantity !== undefined) userDoc.quantity = quantity;
+        if (parcelType !== undefined) userDoc.parcelType = parcelType;
+        if (customerName !== undefined) userDoc.customerName = customerName;
+        if (mobileNumber !== undefined) userDoc.mobileNumber = mobileNumber;
+        if (pickupCity !== undefined) userDoc.pickupCity = pickupCity;
+        if (deliveryCity !== undefined) userDoc.deliveryCity = deliveryCity;
+        if (pickupAddress !== undefined) userDoc.pickupAddress = pickupAddress;
+        if (deliveryAddress !== undefined) userDoc.deliveryAddress = deliveryAddress;
+
+        if (currentStatus !== undefined && currentStatus !== oldStatus) {
+            if (!userDoc.trackingHistory) userDoc.trackingHistory = [];
+            userDoc.trackingHistory.push({
+                status: currentStatus,
+                location: currentLocation || userDoc.currentLocation || 'Branch Hub',
+                branchName: currentBranch || userDoc.currentBranch || (req.user ? req.user.name : 'Branch Hub'),
+                remark: remarks || `Shipment status updated to ${currentStatus}`,
+                updatedBy: req.user ? req.user.name : 'Operator',
+                dateTime: new Date()
+            });
+        }
+
+        await userDoc.save();
+        return res.json(userDoc);
+    }
+
+    // If only found in ParcelRequest
+    res.json(prDoc);
 });
 
 // @desc    Get mobile user shipment details by ID
@@ -554,26 +794,144 @@ const updateMobileShipment = asyncHandler(async (req, res) => {
 // @access  Private (Branch/Admin)
 const getMobileShipmentById = asyncHandler(async (req, res) => {
     const mongoose = require('mongoose');
-    const query = {};
-    if (mongoose.isValidObjectId(req.params.id)) {
-        query.$or = [
-            { _id: req.params.id },
-            { trackingId: req.params.id },
-            { customer: req.params.id },
-            { parcelRequestId: req.params.id }
-        ];
+    const id = req.params.id;
+
+    // Search for a document in MobileShipment
+    const queryConditions = [
+        { 'shipments.trackingId': id },
+        { 'shipments.lrNumber': id },
+        { trackingId: id },
+        { lrNumber: id }
+    ];
+
+    if (mongoose.isValidObjectId(id)) {
+        const objId = new mongoose.Types.ObjectId(id);
+        queryConditions.push({ 'shipments._id': objId });
+        queryConditions.push({ 'shipments.parcelRequestId': objId });
+        queryConditions.push({ _id: objId });
+        queryConditions.push({ parcelRequestId: objId });
+        queryConditions.push({ customer: objId });
     } else {
-        query.$or = [{ trackingId: req.params.id }, { parcelRequestId: req.params.id }];
+        queryConditions.push({ 'shipments.parcelRequestId': id });
+        queryConditions.push({ parcelRequestId: id });
     }
 
-    const shipment = await MobileShipment.findOne(query);
+    const userDoc = await MobileShipment.findOne({ $or: queryConditions });
 
-    if (!shipment) {
-        res.status(404);
-        throw new Error('Shipment not found');
+    // Look up ParcelRequest for true booking timestamp and full parcel specifications
+    const prQuery = [
+        { trackingId: id },
+        { lrNumber: id }
+    ];
+    if (mongoose.isValidObjectId(id)) {
+        const objId = new mongoose.Types.ObjectId(id);
+        prQuery.push({ _id: objId });
+    }
+    if (userDoc && userDoc.parcelRequestId) {
+        if (mongoose.isValidObjectId(userDoc.parcelRequestId)) {
+            prQuery.push({ _id: new mongoose.Types.ObjectId(userDoc.parcelRequestId) });
+        } else {
+            prQuery.push({ _id: userDoc.parcelRequestId });
+        }
     }
 
-    res.json(shipment);
+    const prDoc = await ParcelRequest.findOne({ $or: prQuery }).lean();
+
+    if (userDoc) {
+        let shipmentObj = null;
+
+        if (userDoc.shipments && Array.isArray(userDoc.shipments) && userDoc.shipments.length > 0) {
+            const found = userDoc.shipments.find(s => 
+                (s._id && s._id.toString() === id) ||
+                (s.trackingId && s.trackingId === id) ||
+                (s.lrNumber && s.lrNumber === id) ||
+                (s.parcelRequestId && s.parcelRequestId.toString() === id) ||
+                (prDoc && s.parcelRequestId && s.parcelRequestId.toString() === prDoc._id.toString()) ||
+                (prDoc && s.trackingId && prDoc.trackingId && s.trackingId === prDoc.trackingId)
+            );
+
+            if (found) {
+                shipmentObj = (typeof found.toObject === 'function') ? found.toObject() : { ...found };
+            }
+        }
+
+        if (!shipmentObj) {
+            // Top-level shipment in userDoc
+            shipmentObj = (typeof userDoc.toObject === 'function') ? userDoc.toObject() : { ...userDoc };
+        }
+
+        // Merge true parcel details and accurate booking creation date from prDoc
+        if (prDoc) {
+            shipmentObj.parcelRequestId = prDoc._id;
+            shipmentObj.pickupAddress = prDoc.pickupAddress || shipmentObj.pickupAddress;
+            shipmentObj.deliveryAddress = prDoc.deliveryAddress || shipmentObj.deliveryAddress;
+            shipmentObj.pickupCity = prDoc.pickupCity || shipmentObj.pickupCity;
+            shipmentObj.deliveryCity = prDoc.deliveryCity || shipmentObj.deliveryCity;
+            shipmentObj.parcelType = prDoc.parcelType || shipmentObj.parcelType;
+            shipmentObj.packageDescription = prDoc.packageDescription || shipmentObj.packageDescription;
+            if (prDoc.weight !== undefined) shipmentObj.weight = prDoc.weight;
+            if (prDoc.quantity !== undefined) shipmentObj.quantity = prDoc.quantity;
+            if (prDoc.transportType) shipmentObj.transportType = prDoc.transportType;
+            // TRUE BOOKING TIMESTAMP from when user booked it
+            shipmentObj.createdAt = prDoc.createdAt;
+        } else {
+            // Fallback for createdAt: use first tracking history date if available, never user profile registration date
+            if (Array.isArray(shipmentObj.trackingHistory) && shipmentObj.trackingHistory.length > 0 && shipmentObj.trackingHistory[0].dateTime) {
+                shipmentObj.createdAt = shipmentObj.trackingHistory[0].dateTime;
+            }
+        }
+
+        shipmentObj.customerName = shipmentObj.customerName || userDoc.name || userDoc.customerName || 'N/A';
+        shipmentObj.mobileNumber = shipmentObj.mobileNumber || userDoc.mobile || userDoc.mobileNumber || 'N/A';
+        shipmentObj.email = userDoc.email || 'N/A';
+        shipmentObj.userId = userDoc._id;
+        shipmentObj.customer = userDoc._id;
+        shipmentObj.currentBranch = shipmentObj.currentBranch || userDoc.currentBranch || 'Central Hub';
+        shipmentObj.currentLocation = shipmentObj.currentLocation || shipmentObj.pickupAddress || userDoc.currentLocation || 'N/A';
+
+        let finalStatus = 'Pickup Pending';
+        if (shipmentObj.status && shipmentObj.status !== 'Pending') {
+            finalStatus = shipmentObj.status;
+        } else if (shipmentObj.currentStatus && shipmentObj.currentStatus !== 'Pending') {
+            finalStatus = shipmentObj.currentStatus;
+        } else if (shipmentObj.currentShipmentStatus && shipmentObj.currentShipmentStatus !== 'Pending') {
+            finalStatus = shipmentObj.currentShipmentStatus;
+        } else if (prDoc && prDoc.status && prDoc.status !== 'Pending') {
+            finalStatus = prDoc.status;
+        } else if (Array.isArray(shipmentObj.trackingHistory) && shipmentObj.trackingHistory.length > 0) {
+            const lastH = shipmentObj.trackingHistory[shipmentObj.trackingHistory.length - 1];
+            if (lastH && lastH.status && lastH.status !== 'Pending') {
+                finalStatus = lastH.status;
+            }
+        }
+        shipmentObj.currentStatus = finalStatus;
+        shipmentObj.currentShipmentStatus = finalStatus;
+        shipmentObj.status = finalStatus;
+        if (!shipmentObj._id) shipmentObj._id = userDoc._id;
+        return res.json(shipmentObj);
+    }
+
+    // If only found in ParcelRequest collection
+    if (prDoc) {
+        let finalStatus = 'Pickup Pending';
+        if (prDoc.status && prDoc.status !== 'Pending') {
+            finalStatus = prDoc.status;
+        } else if (prDoc.currentStatus && prDoc.currentStatus !== 'Pending') {
+            finalStatus = prDoc.currentStatus;
+        } else if (Array.isArray(prDoc.trackingHistory) && prDoc.trackingHistory.length > 0) {
+            const lastH = prDoc.trackingHistory[prDoc.trackingHistory.length - 1];
+            if (lastH && lastH.status && lastH.status !== 'Pending') {
+                finalStatus = lastH.status;
+            }
+        }
+        prDoc.currentStatus = finalStatus;
+        prDoc.currentShipmentStatus = finalStatus;
+        prDoc.status = finalStatus;
+        return res.json(prDoc);
+    }
+
+    res.status(404);
+    throw new Error('Shipment not found');
 });
 
 // @desc    Delete a mobile shipment completely
@@ -581,24 +939,72 @@ const getMobileShipmentById = asyncHandler(async (req, res) => {
 // @access  Private (Branch/Admin)
 const deleteMobileShipment = asyncHandler(async (req, res) => {
     const mongoose = require('mongoose');
-    const query = {};
-    if (mongoose.isValidObjectId(req.params.id)) {
-        query.$or = [
-            { _id: req.params.id },
-            { trackingId: req.params.id },
-            { parcelRequestId: req.params.id }
-        ];
+    const id = req.params.id;
+
+    let deletedAny = false;
+
+    // 1. Delete from ParcelRequest collection
+    const prDeleteConditions = [
+        { trackingId: id },
+        { lrNumber: id }
+    ];
+    if (mongoose.isValidObjectId(id)) {
+        prDeleteConditions.push({ _id: new mongoose.Types.ObjectId(id) });
+    }
+    const prDeleted = await ParcelRequest.deleteMany({ $or: prDeleteConditions });
+    if (prDeleted && prDeleted.deletedCount > 0) {
+        deletedAny = true;
+    }
+
+    // 2. Delete from MobileShipment
+    const queryConditions = [
+        { 'shipments.trackingId': id },
+        { 'shipments.lrNumber': id }
+    ];
+
+    if (mongoose.isValidObjectId(id)) {
+        const objId = new mongoose.Types.ObjectId(id);
+        queryConditions.push({ 'shipments._id': objId });
+        queryConditions.push({ 'shipments.parcelRequestId': objId });
     } else {
-        query.$or = [{ trackingId: req.params.id }, { parcelRequestId: req.params.id }];
+        queryConditions.push({ 'shipments.parcelRequestId': id });
     }
 
-    const shipment = await MobileShipment.findOneAndDelete(query);
-    if (!shipment) {
-        res.status(404);
-        throw new Error('Shipment not found');
+    const userDoc = await MobileShipment.findOne({ $or: queryConditions });
+
+    if (userDoc && userDoc.shipments && Array.isArray(userDoc.shipments)) {
+        const initialCount = userDoc.shipments.length;
+        userDoc.shipments = userDoc.shipments.filter(s =>
+            (s._id && s._id.toString() !== id) &&
+            (s.trackingId !== id) &&
+            (s.lrNumber !== id) &&
+            (s.parcelRequestId && s.parcelRequestId.toString() !== id)
+        );
+
+        if (userDoc.shipments.length < initialCount) {
+            userDoc.markModified('shipments');
+            await userDoc.save();
+            deletedAny = true;
+        }
     }
 
-    res.json({ message: 'Shipment deleted successfully' });
+    // Fallback: delete top-level if it has no shipments array
+    if (mongoose.isValidObjectId(id)) {
+        const deleted = await MobileShipment.findOneAndDelete({
+            _id: id,
+            $or: [{ shipments: { $exists: false } }, { shipments: { $size: 0 } }]
+        });
+        if (deleted) {
+            deletedAny = true;
+        }
+    }
+
+    if (deletedAny) {
+        return res.json({ message: 'Shipment deleted successfully' });
+    }
+
+    res.status(404);
+    throw new Error('Shipment not found');
 });
 
 module.exports = {

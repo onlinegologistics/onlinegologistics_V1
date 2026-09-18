@@ -118,9 +118,8 @@ const MobileShipmentManage = () => {
     };
 
     const steps = [
-        'New Requests',
-        'Accepted',
         'Pickup Pending',
+        'Accepted',
         'Picked Up',
         'At Branch',
         'In Transit',
@@ -134,42 +133,47 @@ const MobileShipmentManage = () => {
     // Helper for Operator action card messages
     const getOperatorControls = () => {
         if (!shipment) return { message: '', primaryButton: null };
-        const status = shipment.currentStatus || 'Pending';
+        const rawStatus = shipment.currentStatus || 'Pickup Pending';
+        const status = rawStatus === 'Pending' ? 'Pickup Pending' : rawStatus;
         switch (status) {
-            case 'Pending':
+            case 'Pickup Pending':
                 return {
-                    message: "New shipment request received. Review and accept the shipment to proceed.",
+                    message: "Customer requested parcel pickup. Schedule dispatch staff or mark as Picked Up when retrieved.",
                     primaryButton: (
-                        <button
-                            onClick={() => openStatusModal('Accepted')}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-6 py-3 rounded-xl shadow-md transition duration-200 text-xs uppercase tracking-wider"
-                        >
-                            Accept Shipment
-                        </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                onClick={() => openStatusModal('Picked Up')}
+                                className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-6 py-3 rounded-xl shadow-md transition duration-200 text-xs uppercase tracking-wider"
+                            >
+                                Mark Picked Up
+                            </button>
+                            <button
+                                onClick={() => openStatusModal('Accepted')}
+                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold px-5 py-3 rounded-xl border border-indigo-200 shadow-sm transition duration-200 text-xs uppercase tracking-wider"
+                            >
+                                Mark Accepted
+                            </button>
+                        </div>
                     )
                 };
             case 'Accepted':
                 return {
-                    message: "Shipment accepted. Mark as pickup pending to schedule dispatch staff.",
+                    message: "Shipment accepted. Mark as pickup pending to schedule dispatch staff, or mark as Picked Up.",
                     primaryButton: (
-                        <button
-                            onClick={() => openStatusModal('Pickup Pending')}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-6 py-3 rounded-xl shadow-md transition duration-200 text-xs uppercase tracking-wider"
-                        >
-                            Mark Pickup Pending
-                        </button>
-                    )
-                };
-            case 'Pickup Pending':
-                return {
-                    message: "Pickup scheduled. When the staff retrieves the parcel, mark it as Picked Up.",
-                    primaryButton: (
-                        <button
-                            onClick={() => openStatusModal('Picked Up')}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-6 py-3 rounded-xl shadow-md transition duration-200 text-xs uppercase tracking-wider"
-                        >
-                            Mark Picked Up
-                        </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                onClick={() => openStatusModal('Picked Up')}
+                                className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-6 py-3 rounded-xl shadow-md transition duration-200 text-xs uppercase tracking-wider"
+                            >
+                                Mark Picked Up
+                            </button>
+                            <button
+                                onClick={() => openStatusModal('Pickup Pending')}
+                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold px-5 py-3 rounded-xl border border-indigo-200 shadow-sm transition duration-200 text-xs uppercase tracking-wider"
+                            >
+                                Mark Pickup Pending
+                            </button>
+                        </div>
                     )
                 };
             case 'Picked Up':
@@ -294,8 +298,8 @@ const MobileShipmentManage = () => {
                             <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">
                                 Tracking: {shipment.lrNumber || shipment.trackingId || 'N/A'}
                             </h2>
-                            <span className="bg-orange-100 text-orange-800 text-xs px-3 py-1 rounded-full font-black tracking-wide uppercase">
-                                {shipment.currentStatus || 'Pending'}
+                            <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3.5 py-1 rounded-full font-black tracking-wide uppercase shadow-sm">
+                                {shipment.currentStatus === 'Pending' ? 'Pickup Pending' : (shipment.currentStatus || 'Pickup Pending')}
                             </span>
                         </div>
                         <p className="text-xs text-slate-500 font-semibold">
@@ -389,7 +393,9 @@ const MobileShipmentManage = () => {
             <div className="bg-white rounded-2xl border shadow-sm p-4 overflow-x-auto print:hidden">
                 <div className="flex items-center min-w-[1000px] gap-2 py-2">
                     {(() => {
-                        const currentStatusNormalized = (shipment.currentStatus || 'Pending').toLowerCase().replace(/\s/g, '');
+                        const rawStatus = shipment.currentStatus || 'Pickup Pending';
+                        const effectiveStatus = (rawStatus === 'Pending' ? 'Pickup Pending' : rawStatus);
+                        const currentStatusNormalized = effectiveStatus.toLowerCase().replace(/\s/g, '');
                         const currentStepIndex = steps.findIndex(st => st.toLowerCase().replace(/\s/g, '') === currentStatusNormalized);
 
                         return steps.map((st, idx) => {

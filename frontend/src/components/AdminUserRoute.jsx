@@ -16,9 +16,12 @@ const AdminUserRoute = () => {
         return <Navigate to="/customer/dashboard" />;
     }
 
+    // Agent Panel redirect - Commented out
+    /*
     if (user.role === 'agent') {
         return <Navigate to="/agent/dashboard" />;
     }
+    */
 
     return <Outlet />;
 };

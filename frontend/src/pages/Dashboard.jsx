@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import SuperAdminDashboard from './SuperAdminDashboard';
 import AdminDashboard from './AdminDashboard';
-import AgentDashboard from './AgentDashboard';
+// import AgentDashboard from './AgentDashboard';
 import CustomerDashboard from './CustomerDashboard';
 
 const Dashboard = () => {
@@ -17,8 +17,11 @@ const Dashboard = () => {
             return <SuperAdminDashboard />;
         case 'branch':
             return <AdminDashboard />;
+        // Agent Panel - Commented out
+        /*
         case 'agent':
             return <AgentDashboard />;
+        */
         case 'customer':
             return <CustomerDashboard />;
         default:

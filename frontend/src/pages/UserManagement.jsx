@@ -28,10 +28,6 @@ const UserManagement = () => {
         email: '',
     });
 
-    // Agent state (for branch panel)
-    const [agents, setAgents] = useState([]);
-    const [agentForm, setAgentForm] = useState({ name: '', username: '', password: '', mobile: '' });
-
     // Branch stats (agents/customers count per branch)
     const [branchStats, setBranchStats] = useState({});
 
@@ -69,23 +65,9 @@ const UserManagement = () => {
         }
     };
 
-    const fetchAgents = async () => {
-        try {
-            // Fetch agent users created by this branch
-            const { data } = await axios.get('/api/auth/users', config).catch(() => ({ data: [] }));
-            const agentUsers = (data || []).filter(u => u.role === 'agent');
-            setAgents(agentUsers);
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
     useEffect(() => {
         if (user?.role === 'admin') {
             fetchBranches();
-        }
-        if (user?.role === 'admin' || user?.role === 'branch') {
-            fetchAgents();
         }
     }, [user]);
 
@@ -155,48 +137,11 @@ const UserManagement = () => {
         }
     };
 
-    // ---- Agent Handlers (Branch Panel) ----
-    const handleAgentChange = (e) => {
-        setAgentForm({ ...agentForm, [e.target.name]: e.target.value });
-    };
-
-    const handleAgentSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            // Create agent as a User with role 'agent' so they can login
-            await axios.post('/api/auth/register', {
-                name: agentForm.name,
-                username: agentForm.username,
-                password: agentForm.password,
-                mobile: agentForm.mobile,
-                role: 'agent',
-            }, config);
-            toast.success('Agent Created Successfully! They can now login.');
-            setAgentForm({ name: '', username: '', password: '', mobile: '' });
-            fetchAgents();
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to add agent');
-        }
-    };
-
-    const handleAgentDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this agent?')) {
-            try {
-                await axios.delete(`/api/auth/${id}`, config);
-                toast.success('Agent Deleted');
-                fetchAgents();
-            } catch (error) {
-                toast.error('Failed to delete agent');
-            }
-        }
-    };
-
-    if (user?.role !== 'admin' && user?.role !== 'branch') {
+    if (user?.role !== 'admin') {
         return <div className="p-4 text-red-600 font-bold">Access Denied.</div>;
     }
 
     const isAdmin = user?.role === 'admin';
-    const isBranch = user?.role === 'branch';
 
     return (
         <div className="max-w-5xl mx-auto mt-6">
@@ -303,77 +248,6 @@ const UserManagement = () => {
                 </>
             )}
 
-            {/* ========== BRANCH VIEW: Agent Management ========== */}
-            {isBranch && (
-                <>
-                    <h1 className="text-2xl font-bold mb-4">{isBranch ? 'Agent Management' : 'All Agents'}</h1>
-
-                    {/* Add Agent Form */}
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6">
-                        <h2 className="text-lg font-bold mb-3">Add New Agent</h2>
-                        <form onSubmit={handleAgentSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-                            <div>
-                                <label className="block text-sm font-bold mb-1">Agent Name <span className="text-red-500">*</span></label>
-                                <input type="text" name="name" value={agentForm.name} onChange={handleAgentChange} className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Full name" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold mb-1">Username <span className="text-red-500">*</span></label>
-                                <input type="text" name="username" value={agentForm.username} onChange={handleAgentChange} className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Login username" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold mb-1">Password <span className="text-red-500">*</span></label>
-                                <input type="password" name="password" value={agentForm.password} onChange={handleAgentChange} className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Login password" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold mb-1">Mobile</label>
-                                <input type="text" name="mobile" value={agentForm.mobile} onChange={handleAgentChange} className="border border-gray-300 p-2.5 w-full rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Mobile number" />
-                            </div>
-                            <div>
-                                <button type="submit" className="bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 font-bold w-full transition">+ Add Agent</button>
-                            </div>
-                        </form>
-                    </div>
-
-                    {/* Agent List */}
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                        <h2 className="text-lg font-bold mb-3">Existing Agents ({agents.length})</h2>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full">
-                                <thead>
-                                    <tr className="bg-gray-50">
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">#</th>
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Agent Name</th>
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Username</th>
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Mobile</th>
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {agents.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No agents added yet.</td>
-                                        </tr>
-                                    ) : (
-                                        agents.map((a, idx) => (
-                                            <tr key={a._id} className="hover:bg-gray-50 transition">
-                                                <td className="px-4 py-3 text-sm text-gray-500">{idx + 1}</td>
-                                                <td className="px-4 py-3 text-sm font-semibold text-gray-800">{a.name}</td>
-                                                <td className="px-4 py-3 text-sm text-gray-600">{a.username}</td>
-                                                <td className="px-4 py-3 text-sm text-gray-600">{a.mobile || '-'}</td>
-                                                <td className="px-4 py-3">
-                                                    <button onClick={() => handleAgentDelete(a._id)} className="bg-red-100 text-red-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-red-200 transition">
-                                                        Delete
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </>
-            )}
 
             {/* Edit Branch Modal — Admin Only */}
             {isAdmin && editModalOpen && (

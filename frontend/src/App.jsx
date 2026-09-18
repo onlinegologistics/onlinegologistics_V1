@@ -23,9 +23,9 @@ import CustomerDashboard from './pages/CustomerDashboard';
 import CustomerParcelRequest from './pages/CustomerParcelRequest';
 import Profile from './pages/Profile';
 import BranchDetails from './pages/BranchDetails';
-import AgentDashboard from './pages/AgentDashboard';
+// import AgentDashboard from './pages/AgentDashboard';
 import AgentParcelRequests from './pages/AgentParcelRequests';
-import AgentComplaints from './pages/AgentComplaints';
+// import AgentComplaints from './pages/AgentComplaints';
 import AddRecord from './pages/AddRecord';
 import WhatsApp from './pages/WhatsApp';
 import MobileUsers from './pages/branch/MobileUsers';
@@ -63,7 +63,8 @@ function App() {
                             <Route path="/profile" element={<Profile />} />
                         </Route>
                     </Route>
-                    {/* Agent Routes */}
+                    {/* Agent Routes - Commented out */}
+                    {/*
                     <Route element={<PrivateRoute />}>
                         <Route element={<Layout />}>
                             <Route path="/agent/dashboard" element={<AgentDashboard />} />
@@ -71,6 +72,7 @@ function App() {
                             <Route path="/agent/raise-ticket" element={<RaiseTicket />} />
                         </Route>
                     </Route>
+                    */}
                     {/* Customer Routes */}
                     <Route element={<CustomerRoute />}>
                         <Route element={<CustomerLayout />}>

@@ -21,8 +21,10 @@ const mobileShipmentSchema = mongoose.Schema({
     currentStatus: { type: String },
     isActive: { type: Boolean, default: true },
     trackingId: { type: String },
-    assignedStaff: { type: String }
-}, { timestamps: true });
+    assignedStaff: { type: String },
+    trackingHistory: { type: Array, default: [] },
+    shipments: { type: Array, default: [] }
+}, { timestamps: true, strict: false });
 
 // Explicitly map to the 'mobileusers' collection (which contains shipments/orders)
 const MobileShipment = mongoose.model('MobileShipment', mobileShipmentSchema, 'mobileusers');

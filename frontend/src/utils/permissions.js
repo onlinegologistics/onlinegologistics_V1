@@ -24,11 +24,13 @@ export const canAddLuggage = (userRole) => [ROLES.BRANCH, ROLES.ADMIN].includes(
 export const canUpdateLuggage = (userRole) => [ROLES.BRANCH, ROLES.ADMIN].includes(userRole);
 export const canViewLuggage = (userRole) => [ROLES.BRANCH, ROLES.ADMIN].includes(userRole);
 
-// Agent Panel Permissions
+// Agent Panel Permissions - Commented out
+/*
 export const canViewParcel = (userRole) => [ROLES.AGENT, ROLES.BRANCH, ROLES.ADMIN].includes(userRole);
 export const canPickupParcel = (userRole) => [ROLES.AGENT, ROLES.ADMIN].includes(userRole);
 export const canDropParcel = (userRole) => [ROLES.AGENT, ROLES.ADMIN].includes(userRole);
 export const canUpdateParcel = (userRole) => [ROLES.BRANCH, ROLES.ADMIN].includes(userRole);
+*/
 
 // Customer Panel Permissions
 export const canAddParcel = (userRole) => [ROLES.CUSTOMER, ROLES.ADMIN].includes(userRole);

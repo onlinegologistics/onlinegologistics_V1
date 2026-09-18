@@ -39,7 +39,6 @@ const getNavLinks = (role) => {
         ...common,
         { to: "/add-record", label: "New Entry", icon: FilePlus2 },
         { to: "/agent-parcel-requests", label: "Parcels Requests", icon: PackageCheck },
-        { to: "/users", label: "Agents", icon: Users },
         { to: "/complaints", label: "Complaints", icon: MessageSquareWarning },
         { to: "/reports", label: "Reports", icon: BarChart3 },
         { to: "/branch/mobile-shipments", label: "Mobile Shipments", icon: Smartphone },
@@ -50,11 +49,14 @@ const getNavLinks = (role) => {
         { to: "/new-entry", label: "New Entry", icon: FilePlus2 },
         { to: "/parcel-requests", label: "Parcels", icon: ClipboardList },
       ];
+    // Agent Panel navigation - Commented out
+    /*
     case "agent":
       return [
         { to: "/agent/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { to: "/agent/complaints", label: "Complaints", icon: MessageSquareWarning },
       ];
+    */
     default:
       return common;
   }
@@ -68,15 +70,18 @@ const getRoleLabel = (role) => {
       return "Branch Panel";
     case "user":
       return "Staff Panel";
+    // Agent Panel role label - Commented out
+    /*
     case "agent":
       return "Agent Panel";
+    */
     default:
       return "Dashboard";
   }
 };
 
 const isPathActive = (pathname, linkPath) => {
-  if (linkPath === "/dashboard" || linkPath === "/agent/dashboard") {
+  if (linkPath === "/dashboard" /* || linkPath === "/agent/dashboard" */) {
     return pathname === linkPath;
   }
 
@@ -185,7 +190,8 @@ const TopNavLayout = ({ user, navLinks, logout }) => {
     <div className="min-h-screen flex flex-col">
       <nav className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-white/10 shadow-lg print:hidden">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <Brand panelHome={user?.role === "agent" ? "/agent/dashboard" : "/dashboard"} />
+          {/* panelHome={user?.role === "agent" ? "/agent/dashboard" : "/dashboard"} */}
+          <Brand panelHome="/dashboard" />
 
           <div className="hidden xl:flex items-center gap-3 flex-1 justify-end">
             <UserPill user={user} />

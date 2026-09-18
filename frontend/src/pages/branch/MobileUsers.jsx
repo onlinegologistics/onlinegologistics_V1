@@ -25,6 +25,10 @@ import {
   CheckCircle2,
   Clock,
   Truck,
+  Mail,
+  MapPin,
+  Calendar,
+  Package,
 } from "lucide-react";
 
 const MobileUsers = ({ shipmentOnly = false }) => {
@@ -66,7 +70,7 @@ const MobileUsers = ({ shipmentOnly = false }) => {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const recordsPerPage = 10;
+  const recordsPerPage = activeTab === "shipments" ? 5 : 10;
 
     // Modal state for Enquiry & Complaint Response
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -102,7 +106,22 @@ const MobileUsers = ({ shipmentOnly = false }) => {
       if (type === 'user') {
         setUsers(prev => prev.filter(u => u._id !== id));
       } else if (type === 'shipment') {
-        setUsers(prev => prev.map(u => u.latestShipment && (u.latestShipment.trackingId === id || u.latestShipment.lrNumber === id) ? {...u, latestShipment: null} : u));
+        setUsers(prev => prev.map(u => {
+          const updatedShipments = (u.shipments || []).filter(s =>
+            s._id !== id && s.trackingId !== id && s.lrNumber !== id
+          );
+          const isLatestDeleted = u.latestShipment && (
+            u.latestShipment._id === id ||
+            u.latestShipment.trackingId === id ||
+            u.latestShipment.lrNumber === id
+          );
+          return {
+            ...u,
+            shipments: updatedShipments,
+            shipmentsCount: updatedShipments.length,
+            latestShipment: isLatestDeleted ? (updatedShipments[0] || null) : u.latestShipment
+          };
+        }));
       } else if (type === 'enquiry') {
         setEnquiries(prev => prev.filter(e => e._id !== id));
       } else if (type === 'complaint') {
@@ -129,7 +148,7 @@ const MobileUsers = ({ shipmentOnly = false }) => {
     try {
       let endpoint = '';
       if (editType === 'user') endpoint = `/api/mobile-users/${editItem._id}`;
-      else if (editType === 'shipment') endpoint = `/api/mobile-users/shipments/${editItem.trackingId || editItem._id}`;
+      else if (editType === 'shipment') endpoint = `/api/mobile-users/shipments/${editItem.trackingId || editItem.lrNumber || editItem._id}`;
       else if (editType === 'enquiry') endpoint = `/api/mobile-user-enquiries/${editItem._id}`;
       else if (editType === 'complaint') endpoint = `/api/mobile-user-complaints/${editItem._id}`;
       
@@ -138,7 +157,25 @@ const MobileUsers = ({ shipmentOnly = false }) => {
       if (editType === 'user') {
         setUsers(prev => prev.map(u => u._id === editItem._id ? { ...u, ...data } : u));
       } else if (editType === 'shipment') {
-        setUsers(prev => prev.map(u => u.latestShipment && (u.latestShipment.trackingId === (editItem.trackingId || editItem._id) || u.latestShipment.lrNumber === (editItem.trackingId || editItem._id)) ? {...u, latestShipment: {...u.latestShipment, ...data}} : u));
+        const targetId = editItem.trackingId || editItem.lrNumber || editItem._id;
+        setUsers(prev => prev.map(u => {
+          const updatedShipments = (u.shipments || []).map(s => {
+            if (s.trackingId === targetId || s.lrNumber === targetId || (s._id && s._id === targetId)) {
+              return { ...s, ...editItem, ...data };
+            }
+            return s;
+          });
+          const isLatest = u.latestShipment && (
+            u.latestShipment.trackingId === targetId ||
+            u.latestShipment.lrNumber === targetId ||
+            u.latestShipment._id === targetId
+          );
+          return {
+            ...u,
+            shipments: updatedShipments,
+            latestShipment: isLatest ? { ...u.latestShipment, ...editItem, ...data } : u.latestShipment
+          };
+        }));
       } else if (editType === 'enquiry') {
         setEnquiries(prev => prev.map(enq => enq._id === editItem._id ? { ...enq, ...data } : enq));
       } else if (editType === 'complaint') {
@@ -256,33 +293,57 @@ const MobileUsers = ({ shipmentOnly = false }) => {
         return matchesSearch && matchesStatus;
       });
     } else if (activeTab === "shipments") {
-      return allShipmentsList.filter((s) => {
-        const matchesSearch =
-          (s.customerName || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (s.lrNumber || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.trackingId || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (s.pickupCity || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (s.deliveryCity || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase());
-        const matchesStatus =
-          statusFilter === "" || s.currentShipmentStatus === statusFilter;
-        const matchesTransport =
-          transportFilter === "" || s.transportType === transportFilter;
-        const matchesDate =
-          dateFilter === "" ||
-          (s.expectedDeliveryDate &&
-            s.expectedDeliveryDate.substring(0, 10) === dateFilter);
-        return (
-          matchesSearch && matchesStatus && matchesTransport && matchesDate
-        );
+      const groups = [];
+      users.forEach((u) => {
+        let rawShipments = [];
+        if (Array.isArray(u.shipments) && u.shipments.length > 0) {
+          rawShipments = u.shipments;
+        } else if (u.latestShipment) {
+          rawShipments = [u.latestShipment];
+        }
+
+        const validShipments = rawShipments
+          .filter(Boolean)
+          .filter(
+            (s) =>
+              s.deliveryAddress &&
+              s.deliveryAddress.trim() !== "" &&
+              s.deliveryAddress !== "N/A",
+          );
+
+        const matchingShipments = validShipments.filter((s) => {
+          const searchLower = searchTerm.toLowerCase();
+          const matchesSearch =
+            (s.customerName || "").toLowerCase().includes(searchLower) ||
+            (s.lrNumber || "").toLowerCase().includes(searchLower) ||
+            (s.trackingId || "").toLowerCase().includes(searchLower) ||
+            (s.pickupCity || "").toLowerCase().includes(searchLower) ||
+            (s.deliveryCity || "").toLowerCase().includes(searchLower) ||
+            (u.name || "").toLowerCase().includes(searchLower) ||
+            (u.email || "").toLowerCase().includes(searchLower) ||
+            (u.mobile || "").includes(searchTerm);
+
+          const sStatus = s.currentShipmentStatus || s.currentStatus || "Pickup Pending";
+          const normalizedStatus = sStatus === "Pending" ? "Pickup Pending" : sStatus;
+          const matchesStatus =
+            statusFilter === "" ||
+            normalizedStatus === statusFilter ||
+            (statusFilter === "Pickup Pending" && (sStatus === "Pending" || sStatus === "Pickup Pending"));
+          const matchesTransport =
+            transportFilter === "" || s.transportType === transportFilter;
+          const matchesDate =
+            dateFilter === "" ||
+            (s.expectedDeliveryDate &&
+              s.expectedDeliveryDate.substring(0, 10) === dateFilter);
+
+          return matchesSearch && matchesStatus && matchesTransport && matchesDate;
+        });
+
+        if (matchingShipments.length > 0) {
+          groups.push({ user: u, shipments: matchingShipments });
+        }
       });
+      return groups;
     } else if (activeTab === "enquiries") {
       return enquiries.filter((e) => {
         const userName = e.user?.name || e.name || "";
@@ -449,25 +510,46 @@ const MobileUsers = ({ shipmentOnly = false }) => {
       ]);
     } else if (activeTab === "shipments") {
       headers = [
+        "User Name",
+        "User Mobile",
+        "User Email",
         "Tracking ID",
         "LR Number",
         "Customer Name",
-        "Mobile",
+        "Shipment Mobile",
         "Pickup City",
+        "Pickup Address",
         "Delivery City",
-        "Type",
+        "Delivery Address",
+        "Parcel Type",
+        "Transport Type",
+        "Weight",
+        "Quantity",
         "Status",
       ];
-      rows = filteredData.map((s) => [
-        s.trackingId,
-        s.lrNumber,
-        s.customerName,
-        s.mobileNumber,
-        s.pickupCity,
-        s.deliveryCity,
-        s.parcelType,
-        s.currentShipmentStatus,
-      ]);
+      rows = [];
+      filteredData.forEach((group) => {
+        (group.shipments || []).forEach((s) => {
+          rows.push([
+            group.user?.name || "N/A",
+            group.user?.mobile || "N/A",
+            group.user?.email || group.user?.username || "N/A",
+            s.trackingId || "N/A",
+            s.lrNumber || "N/A",
+            s.customerName || group.user?.name || "N/A",
+            s.mobileNumber || group.user?.mobile || "N/A",
+            s.pickupCity || "N/A",
+            s.pickupAddress || "N/A",
+            s.deliveryCity || "N/A",
+            s.deliveryAddress || "N/A",
+            s.parcelType || "Parcel",
+            s.transportType || "Standard",
+            s.weight || 0,
+            s.quantity || 1,
+            s.currentShipmentStatus || s.currentStatus || "N/A",
+          ]);
+        });
+      });
     } else if (activeTab === "enquiries") {
       headers = [
         "Customer Name",
@@ -980,9 +1062,8 @@ const MobileUsers = ({ shipmentOnly = false }) => {
           <div className="flex flex-wrap gap-1.5 items-center">
             {[
               "",
-              "Pending",
-              "Accepted",
               "Pickup Pending",
+              "Accepted",
               "Picked Up",
               "At Branch",
               "In Transit",
@@ -1116,7 +1197,9 @@ const MobileUsers = ({ shipmentOnly = false }) => {
             {activeTab === "complaints" && "USER COMPLAINTS LIST"}
           </h3>
           <span className="bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
-            {filteredData.length} TOTAL RECORDS
+            {activeTab === "shipments"
+              ? `${filteredData.reduce((acc, g) => acc + (g.shipments?.length || 0), 0)} TOTAL SHIPMENTS (${filteredData.length} USERS)`
+              : `${filteredData.length} TOTAL RECORDS`}
           </span>
         </div>
 
@@ -1220,161 +1303,250 @@ const MobileUsers = ({ shipmentOnly = false }) => {
               </table>
             )}
 
-            {/* Shipment Reports Table - Matches screenshot design */}
+            {/* Shipment Reports Table - Grouped by User with all shipments below user details */}
             {activeTab === "shipments" && (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                    <th className="py-4 px-6">TRACKING ID</th>
-                    <th className="py-4 px-6">CUSTOMER</th>
-                    <th className="py-4 px-6">PICKUP / DELIVERY ADDRESS</th>
-                    <th className="py-4 px-6">TRANSPORT</th>
-                    <th className="py-4 px-6">GOODS SPECS</th>
-                    <th className="py-4 px-6">STATUS</th>
-                    <th className="py-4 px-6 text-center print:hidden">
-                      ACTIONS
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-[11px] text-slate-600">
-                  {paginatedData.map((s, idx) => (
-                    <tr
-                      key={s.trackingId || idx}
-                      className="hover:bg-slate-50/25 transition duration-150"
-                    >
-                      {/* TRACKING ID */}
-                      <td className="py-3 px-6 font-mono font-black text-slate-800 tracking-tight">
-                        {s.lrNumber || s.trackingId || "No tracking ID"}
-                      </td>
-
-                      {/* CUSTOMER */}
-                      <td className="py-3 px-6">
-                        <div className="font-bold text-slate-800 text-xs">
-                          {s.customerName}
+              <div className="divide-y-4 divide-slate-100 bg-slate-50/40">
+                {paginatedData.map((group, groupIdx) => (
+                  <div
+                    key={group.user?._id || group.user?.mobile || groupIdx}
+                    className="bg-white"
+                  >
+                    {/* User Profile / Details Card */}
+                    <div className="bg-gradient-to-r from-slate-50 via-purple-50/25 to-white px-6 py-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start sm:items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white font-black flex items-center justify-center text-sm shadow-md shadow-purple-200 shrink-0">
+                          {(group.user?.name || "U").charAt(0).toUpperCase()}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-semibold mt-0.5 flex items-center gap-1">
-                          <Phone size={10} className="text-slate-400" />
-                          <span>{s.mobileNumber}</span>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-extrabold text-slate-900 text-sm tracking-tight">
+                              {group.user?.name || "Mobile Customer"}
+                            </h4>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                group.user?.isActive
+                                  ? "bg-green-50 text-green-700 border border-green-200"
+                                  : "bg-red-50 text-red-700 border border-red-200"
+                              }`}
+                            >
+                              {group.user?.isActive ? "Active User" : "Blocked"}
+                            </span>
+                            <span className="bg-purple-100 text-purple-800 border border-purple-200 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                              {group.shipments?.length || 0} {group.shipments?.length === 1 ? "SHIPMENT" : "SHIPMENTS"}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-[11px] text-slate-500 font-medium">
+                            <span className="flex items-center gap-1 font-semibold text-slate-700 font-mono">
+                              <Phone size={12} className="text-purple-600" />
+                              <span>{group.user?.mobile || "N/A"}</span>
+                            </span>
+                            {(group.user?.email || group.user?.username) && (
+                              <span className="flex items-center gap-1">
+                                <Mail size={12} className="text-slate-400" />
+                                <span>{group.user?.email || group.user?.username}</span>
+                              </span>
+                            )}
+                            {group.user?.address && (
+                              <span className="flex items-center gap-1">
+                                <MapPin size={12} className="text-slate-400" />
+                                <span className="max-w-xs truncate" title={group.user?.address}>
+                                  {group.user?.address}
+                                </span>
+                              </span>
+                            )}
+                            {group.user?.createdAt && (
+                              <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <Calendar size={11} className="text-slate-400" />
+                                <span>Joined {new Date(group.user.createdAt).toLocaleDateString()}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </td>
+                      </div>
 
-                      {/* PICKUP / DELIVERY ADDRESS */}
-                      <td className="py-3 px-6 space-y-1 text-[10px]">
-                        <div className="flex items-start gap-1">
-                          <span className="bg-blue-600 text-white text-[8px] px-1 rounded font-black tracking-wide shrink-0">
-                            FROM
-                          </span>
-                          <span className="text-slate-700 font-bold">
-                            {s.pickupCity || "N/A"}:
-                          </span>
-                          <span
-                            className="text-slate-500 max-w-[180px] truncate block italic"
-                            title={s.pickupAddress}
-                          >
-                            {s.pickupAddress}
-                          </span>
-                        </div>
-                        <div className="flex items-start gap-1">
-                          <span className="bg-green-600 text-white text-[8px] px-1 rounded font-black tracking-wide shrink-0">
-                            TO
-                          </span>
-                          <span className="text-slate-700 font-bold">
-                            {s.deliveryCity || "N/A"}:
-                          </span>
-                          <span
-                            className="text-slate-500 max-w-[180px] truncate block italic"
-                            title={s.deliveryAddress}
-                          >
-                            {s.deliveryAddress}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* TRANSPORT */}
-                      <td className="py-3 px-6">
-                        <span className="inline-block border border-orange-200 bg-orange-50 text-orange-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
-                          {s.transportType || "STANDARD"}
-                        </span>
-                      </td>
-
-                      {/* GOODS SPECS */}
-                      <td className="py-3 px-6 text-[10px] text-slate-500 font-semibold space-y-0.5">
-                        {s.parcelType ? (
-                          <>
-                            <div className="font-black text-slate-800">
-                              {s.parcelType}
-                            </div>
-                            <div>
-                              {s.quantity || 1} PKG • {s.weight || 0} kg
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-slate-400 italic">Parcel</div>
-                        )}
-                      </td>
-
-                      {/* STATUS */}
-                      <td className="py-3 px-6">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                            s.currentShipmentStatus === "Delivered"
-                              ? "bg-green-50 text-green-700 border border-green-200"
-                              : s.currentShipmentStatus === "Cancelled"
-                                ? "bg-red-50 text-red-700 border border-red-200"
-                                : s.currentShipmentStatus === "In Transit"
-                                  ? "bg-orange-50 text-orange-700 border border-orange-200 animate-pulse"
-                                  : s.currentShipmentStatus === "Pickup Pending"
-                                    ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                                    : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}
+                      <div className="flex items-center gap-2 self-end md:self-center print:hidden">
+                        <button
+                          onClick={() => openEditModal(group.user, "user")}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition shadow-sm flex items-center gap-1.5"
                         >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              s.currentShipmentStatus === "Delivered"
-                                ? "bg-green-500"
-                                : s.currentShipmentStatus === "Cancelled"
-                                  ? "bg-red-500"
-                                  : s.currentShipmentStatus === "In Transit"
-                                    ? "bg-orange-500"
-                                    : s.currentShipmentStatus ===
-                                        "Pickup Pending"
-                                      ? "bg-indigo-500"
-                                      : "bg-amber-500"
-                            }`}
-                          ></span>
-                          {s.currentShipmentStatus}
-                        </span>
-                      </td>
+                          <Edit3 size={12} className="text-slate-500" />
+                          <span>Edit User</span>
+                        </button>
+                      </div>
+                    </div>
 
-                                            {/* ACTIONS */}
-                      <td className="py-3 px-6 text-center print:hidden">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => openManageShipment(s)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[10px] tracking-wide transition duration-200 shadow-sm"
-                          >
-                            Manage
-                          </button>
-                          <button
-                            onClick={() => openEditModal(s, "shipment")}
-                            className="bg-blue-50 hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition duration-200 border border-blue-100"
-                            title="Edit Shipment"
-                          >
-                            <Edit3 size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(s.trackingId || s._id, "shipment")}
-                            className="bg-rose-50 hover:bg-rose-100 text-rose-500 p-1.5 rounded-lg transition duration-200 border border-rose-100"
-                            title="Delete Shipment"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    {/* Shipments Table for this User */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-500 font-bold text-[10px] uppercase tracking-wider">
+                            <th className="py-3 px-6">TRACKING ID</th>
+                            <th className="py-3 px-6">CUSTOMER</th>
+                            <th className="py-3 px-6">PICKUP / DELIVERY ADDRESS</th>
+                            <th className="py-3 px-6">TRANSPORT</th>
+                            <th className="py-3 px-6">GOODS SPECS</th>
+                            <th className="py-3 px-6">STATUS</th>
+                            <th className="py-3 px-6 text-center print:hidden">
+                              ACTIONS
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-[11px] text-slate-600">
+                          {(group.shipments || []).map((s, idx) => (
+                            <tr
+                              key={s.trackingId || s.lrNumber || s._id || idx}
+                              className="hover:bg-slate-50/40 transition duration-150"
+                            >
+                              {/* TRACKING ID */}
+                              <td className="py-3 px-6 font-mono font-black text-slate-800 tracking-tight">
+                                <div>{s.lrNumber || s.trackingId || "No tracking ID"}</div>
+                                {s.createdAt && (
+                                  <div className="text-[9px] text-slate-400 font-sans font-semibold mt-0.5 flex items-center gap-1">
+                                    <span>📅</span>
+                                    <span>{new Date(s.createdAt).toLocaleDateString()} {new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* CUSTOMER */}
+                              <td className="py-3 px-6">
+                                <div className="font-bold text-slate-800 text-xs">
+                                  {s.customerName || group.user?.name}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-semibold mt-0.5 flex items-center gap-1 font-mono">
+                                  <Phone size={10} className="text-slate-400" />
+                                  <span>{s.mobileNumber || group.user?.mobile}</span>
+                                </div>
+                              </td>
+
+                              {/* PICKUP / DELIVERY ADDRESS */}
+                              <td className="py-3 px-6 space-y-1 text-[10px]">
+                                <div className="flex items-start gap-1">
+                                  <span className="bg-blue-600 text-white text-[8px] px-1 rounded font-black tracking-wide shrink-0">
+                                    FROM
+                                  </span>
+                                  <span className="text-slate-700 font-bold">
+                                    {s.pickupCity || "N/A"}:
+                                  </span>
+                                  <span
+                                    className="text-slate-500 max-w-[180px] truncate block italic"
+                                    title={s.pickupAddress}
+                                  >
+                                    {s.pickupAddress}
+                                  </span>
+                                </div>
+                                <div className="flex items-start gap-1">
+                                  <span className="bg-green-600 text-white text-[8px] px-1 rounded font-black tracking-wide shrink-0">
+                                    TO
+                                  </span>
+                                  <span className="text-slate-700 font-bold">
+                                    {s.deliveryCity || "N/A"}:
+                                  </span>
+                                  <span
+                                    className="text-slate-500 max-w-[180px] truncate block italic"
+                                    title={s.deliveryAddress}
+                                  >
+                                    {s.deliveryAddress}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* TRANSPORT */}
+                              <td className="py-3 px-6">
+                                <span className="inline-block border border-orange-200 bg-orange-50 text-orange-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">
+                                  {s.transportType || "STANDARD"}
+                                </span>
+                              </td>
+
+                              {/* GOODS SPECS */}
+                              <td className="py-3 px-6 text-[10px] text-slate-500 font-semibold space-y-0.5">
+                                {s.parcelType ? (
+                                  <>
+                                    <div className="font-black text-slate-800">
+                                      {s.parcelType}
+                                    </div>
+                                    <div>
+                                      {s.quantity || 1} PKG • {s.weight || 0} kg
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="text-slate-400 italic">Parcel</div>
+                                )}
+                              </td>
+
+                              {/* STATUS */}
+                              <td className="py-3 px-6">
+                                {(() => {
+                                  let st = s.currentShipmentStatus || s.currentStatus || "Pickup Pending";
+                                  if (st === "Pending") st = "Pickup Pending";
+
+                                  let badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                                  let dotClass = "bg-indigo-600";
+
+                                  if (st === "Delivered") {
+                                    badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                    dotClass = "bg-emerald-500";
+                                  } else if (st === "Cancelled") {
+                                    badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+                                    dotClass = "bg-rose-500";
+                                  } else if (st === "In Transit" || st === "Out for Delivery") {
+                                    badgeClass = "bg-orange-50 text-orange-700 border-orange-200 animate-pulse";
+                                    dotClass = "bg-orange-500";
+                                  } else if (st === "Pickup Pending") {
+                                    badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm";
+                                    dotClass = "bg-indigo-600";
+                                  } else if (st === "Picked Up" || st === "At Branch" || st === "Destination Arrived") {
+                                    badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+                                    dotClass = "bg-blue-500";
+                                  } else if (st === "Accepted" || st === "Approved") {
+                                    badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+                                    dotClass = "bg-purple-600";
+                                  }
+
+                                  return (
+                                    <span
+                                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-sm ${badgeClass}`}
+                                    >
+                                      <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`}></span>
+                                      {st}
+                                    </span>
+                                  );
+                                })()}
+                              </td>
+
+                              {/* ACTIONS */}
+                              <td className="py-3 px-6 text-center print:hidden">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => openManageShipment(s)}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[10px] tracking-wide transition duration-200 shadow-sm"
+                                  >
+                                    Manage
+                                  </button>
+                                  <button
+                                    onClick={() => openEditModal(s, "shipment")}
+                                    className="bg-blue-50 hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition duration-200 border border-blue-100"
+                                    title="Edit Shipment"
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(s.trackingId || s.lrNumber || s._id, "shipment")}
+                                    className="bg-rose-50 hover:bg-rose-100 text-rose-500 p-1.5 rounded-lg transition duration-200 border border-rose-100"
+                                    title="Delete Shipment"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
 
             {/* User Enquiries Table - Matches screenshot design */}
@@ -1607,9 +1779,24 @@ const MobileUsers = ({ shipmentOnly = false }) => {
       {!loading && filteredData.length > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-4 print:hidden">
           <span className="text-slate-500 text-xs font-semibold">
-            Showing {(currentPage - 1) * recordsPerPage + 1} -{" "}
-            {Math.min(currentPage * recordsPerPage, filteredData.length)} of{" "}
-            {filteredData.length} records
+            {activeTab === "shipments" ? (
+              <>
+                Showing {(currentPage - 1) * recordsPerPage + 1} -{" "}
+                {Math.min(currentPage * recordsPerPage, filteredData.length)} of{" "}
+                {filteredData.length} users (
+                {filteredData.reduce(
+                  (acc, g) => acc + (g.shipments?.length || 0),
+                  0,
+                )}{" "}
+                total shipments)
+              </>
+            ) : (
+              <>
+                Showing {(currentPage - 1) * recordsPerPage + 1} -{" "}
+                {Math.min(currentPage * recordsPerPage, filteredData.length)} of{" "}
+                {filteredData.length} records
+              </>
+            )}
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -1683,10 +1870,18 @@ const MobileUsers = ({ shipmentOnly = false }) => {
                     <div className="col-span-1 md:col-span-2 space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Delivery Address</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.deliveryAddress || ''} onChange={e => setEditItem({...editItem, deliveryAddress: e.target.value})} /></div>
                     <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Parcel Type</label><input type="text" className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.parcelType || ''} onChange={e => setEditItem({...editItem, parcelType: e.target.value})} /></div>
                     <div className="space-y-1.5"><label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Current Status</label>
-                      <select className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm" value={editItem.currentShipmentStatus || editItem.currentStatus || 'Pending'} onChange={e => setEditItem({...editItem, currentStatus: e.target.value, currentShipmentStatus: e.target.value})}>
-                        <option value="Pending">Pending</option>
+                      <select
+                        className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm"
+                        value={editItem.currentShipmentStatus === 'Pending' ? 'Pickup Pending' : (editItem.currentShipmentStatus || editItem.currentStatus || 'Pickup Pending')}
+                        onChange={e => setEditItem({...editItem, currentStatus: e.target.value, currentShipmentStatus: e.target.value})}
+                      >
                         <option value="Pickup Pending">Pickup Pending</option>
+                        <option value="Accepted">Accepted</option>
+                        <option value="Picked Up">Picked Up</option>
+                        <option value="At Branch">At Branch</option>
                         <option value="In Transit">In Transit</option>
+                        <option value="Destination Arrived">Destination Arrived</option>
+                        <option value="Out for Delivery">Out for Delivery</option>
                         <option value="Delivered">Delivered</option>
                         <option value="Cancelled">Cancelled</option>
                       </select>
