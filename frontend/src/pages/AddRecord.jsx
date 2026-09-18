@@ -48,6 +48,15 @@ const AddRecord = () => {
 
     useEffect(() => { fetchRecords(); }, [filterType]);
 
+    const formatCurrency = (val) => {
+        const num = Number(val) || 0;
+        if (isNaN(num) || !isFinite(num)) return '0.00';
+        return num.toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+
     useEffect(() => {
         let tRecords = records.length;
         let tAmount = 0;
@@ -59,19 +68,22 @@ const AddRecord = () => {
             const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
             dests.forEach(d => {
                 const amt = parseFloat(d.totalAmount) || 0;
-                tAmount += amt;
-                if (d.paymentMode === 'Paid') pAmount += amt;
-                else if (d.paymentMode === 'ToPay') tpAmount += amt;
-                else if (d.paymentMode === 'Credit') cAmount += amt;
+                if (!isNaN(amt) && isFinite(amt) && amt < 1e12) {
+                    tAmount += amt;
+                    const pMode = d.paymentMode || r.paymentMode || 'Paid';
+                    if (pMode === 'Paid') pAmount += amt;
+                    else if (pMode === 'ToPay') tpAmount += amt;
+                    else if (pMode === 'Credit') cAmount += amt;
+                }
             });
         });
 
         setStats({
             totalRecords: tRecords,
-            totalAmount: tAmount.toFixed(2),
-            paidAmount: pAmount.toFixed(2),
-            toPayAmount: tpAmount.toFixed(2),
-            creditAmount: cAmount.toFixed(2),
+            totalAmount: tAmount,
+            paidAmount: pAmount,
+            toPayAmount: tpAmount,
+            creditAmount: cAmount,
         });
     }, [records]);
 
@@ -204,53 +216,63 @@ const AddRecord = () => {
 
             {/* Statistics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-5 rounded-xl shadow-md">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-purple-100 text-xs font-bold uppercase">Total Records</p>
-                            <p className="text-2xl font-bold mt-1">{stats.totalRecords}</p>
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-xl shadow-md min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-purple-100 text-xs font-bold uppercase tracking-wider">Total Records</p>
+                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={stats.totalRecords.toLocaleString('en-IN')}>
+                                {stats.totalRecords.toLocaleString('en-IN')}
+                            </p>
                         </div>
-                        <Package className="w-10 h-10 text-purple-200 opacity-80" />
+                        <Package className="w-8 h-8 lg:w-10 lg:h-10 text-purple-200 opacity-80 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-5 rounded-xl shadow-md">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-green-100 text-xs font-bold uppercase">Total Amount</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.totalAmount}</p>
+                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-xl shadow-md min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-green-100 text-xs font-bold uppercase tracking-wider">Total Amount</p>
+                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.totalAmount)}`}>
+                                ₹{formatCurrency(stats.totalAmount)}
+                            </p>
                         </div>
-                        <DollarSign className="w-10 h-10 text-green-200 opacity-80" />
+                        <DollarSign className="w-8 h-8 lg:w-10 lg:h-10 text-green-200 opacity-80 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-5 rounded-xl shadow-md">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-blue-100 text-xs font-bold uppercase">Paid</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.paidAmount}</p>
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-xl shadow-md min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Paid</p>
+                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.paidAmount)}`}>
+                                ₹{formatCurrency(stats.paidAmount)}
+                            </p>
                         </div>
-                        <TrendingUp className="w-10 h-10 text-blue-200 opacity-80" />
+                        <TrendingUp className="w-8 h-8 lg:w-10 lg:h-10 text-blue-200 opacity-80 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-5 rounded-xl shadow-md">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-yellow-100 text-xs font-bold uppercase">To Pay</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.toPayAmount}</p>
+                <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-4 rounded-xl shadow-md min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-yellow-100 text-xs font-bold uppercase tracking-wider">To Pay</p>
+                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.toPayAmount)}`}>
+                                ₹{formatCurrency(stats.toPayAmount)}
+                            </p>
                         </div>
-                        <TrendingUp className="w-10 h-10 text-yellow-200 opacity-80" />
+                        <TrendingUp className="w-8 h-8 lg:w-10 lg:h-10 text-yellow-200 opacity-80 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-5 rounded-xl shadow-md">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-orange-100 text-xs font-bold uppercase">Credit</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.creditAmount}</p>
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-xl shadow-md min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-orange-100 text-xs font-bold uppercase tracking-wider">Credit</p>
+                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.creditAmount)}`}>
+                                ₹{formatCurrency(stats.creditAmount)}
+                            </p>
                         </div>
-                        <TrendingUp className="w-10 h-10 text-orange-200 opacity-80" />
+                        <TrendingUp className="w-8 h-8 lg:w-10 lg:h-10 text-orange-200 opacity-80 shrink-0" />
                     </div>
                 </div>
             </div>
@@ -373,20 +395,20 @@ const AddRecord = () => {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm table-fixed">
                             <thead>
                                 <tr className="bg-gray-50 text-left">
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">#</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Date</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Type</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Client</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Company</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Route</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase text-center">Parcels</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Total ₹</th>
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Status</th>
-                                    {user?.role === 'admin' && <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase">Branch</th>}
-                                    <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase text-right">Action</th>
+                                    <th className="w-8 px-3 py-3 text-xs font-bold text-gray-500 uppercase">#</th>
+                                    <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Date</th>
+                                    <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Mobile No</th>
+                                    <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Client</th>
+                                    <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Company</th>
+                                    <th className="w-36 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Route</th>
+                                    <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-center">Parcels</th>
+                                    <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Total ₹</th>
+                                    <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    {user?.role === 'admin' && <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Branch</th>}
+                                    <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -402,21 +424,26 @@ const AddRecord = () => {
                                         <tr key={r._id} className="hover:bg-gray-50/50">
                                             <td className="px-3 py-3 text-gray-500">{i + 1}</td>
                                             <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{new Date(r.date).toLocaleDateString('en-IN')}</td>
-                                            <td className="px-3 py-3">{typeBadge(r.clientType)}</td>
-                                            <td className="px-3 py-3 font-semibold text-gray-800">{r.clientName}</td>
-                                            <td className="px-3 py-3 text-gray-600">{r.company || '-'}</td>
-                                            <td className="px-3 py-3 text-gray-600">
-                                                {r.fromCity} → <span className="font-semibold">{toCityStr}</span>
+                                            <td className="px-3 py-3 whitespace-nowrap">
+                                                {r.mobile ? (
+                                                    <a href={`tel:${r.mobile}`} className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-xs">
+                                                        {r.mobile}
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-gray-400">—</span>
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-3 font-semibold text-gray-800 truncate" title={r.clientName}>{r.clientName}</td>
+                                            <td className="px-3 py-3 text-gray-600 truncate" title={r.company || ''}>{r.company || '-'}</td>
+                                            <td className="px-3 py-3 text-gray-600 truncate" title={`${r.fromCity} → ${toCityStr}`}>
+                                                <span className="text-xs">{r.fromCity} → <span className="font-semibold">{toCityStr}</span></span>
                                             </td>
                                             <td className="px-3 py-3 text-gray-700 font-semibold text-center">{totalParcels}</td>
-                                            <td className="px-3 py-3 font-bold text-green-700">₹{totalAmount}</td>
+                                            <td className="px-3 py-3 font-bold text-green-700 whitespace-nowrap">₹{totalAmount}</td>
                                             <td className="px-3 py-3">{statusBadge(displayStatus)}</td>
-                                            {user?.role === 'admin' && <td className="px-3 py-3 text-gray-500 text-xs">{r.createdBy?.name || '-'}</td>}
+                                            {user?.role === 'admin' && <td className="px-3 py-3 text-gray-500 text-xs truncate">{r.createdBy?.name || '-'}</td>}
                                             <td className="px-3 py-3 flex gap-1 justify-end">
                                                 <button onClick={() => setSelectedRecord(r)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Eye size={15} /></button>
-                                                {user?.role === 'admin' && (
-                                                    <button onClick={() => handleDelete(r._id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={15} /></button>
-                                                )}
                                             </td>
                                         </tr>
                                     );

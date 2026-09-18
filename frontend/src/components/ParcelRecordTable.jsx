@@ -51,7 +51,7 @@ const ParcelRecordTable = ({ limit }) => {
                 <thead>
                     <tr className="bg-gray-100 text-left">
                         <th className="px-5 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
-                        <th className="px-5 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
+                        <th className="px-5 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Mobile No</th>
                         <th className="px-5 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Client</th>
                         <th className="px-5 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Company</th>
                         <th className="px-5 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Route</th>
@@ -78,7 +78,15 @@ const ParcelRecordTable = ({ limit }) => {
                             return (
                                 <tr key={r._id} className="hover:bg-gray-50 bg-white">
                                     <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{new Date(r.date).toLocaleDateString('en-IN')}</td>
-                                    <td className="px-5 py-4">{typeBadge(r.clientType)}</td>
+                                    <td className="px-5 py-4">
+                                        {r.mobile ? (
+                                            <a href={`tel:${r.mobile}`} className="text-blue-600 hover:text-blue-800 font-medium hover:underline whitespace-nowrap">
+                                                {r.mobile}
+                                            </a>
+                                        ) : (
+                                            <span className="text-gray-400">—</span>
+                                        )}
+                                    </td>
                                     <td className="px-5 py-4 font-semibold text-gray-800">{r.clientName}</td>
                                     <td className="px-5 py-4 text-gray-600">{r.company || '-'}</td>
                                     <td className="px-5 py-4 text-gray-600">

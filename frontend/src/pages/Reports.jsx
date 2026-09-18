@@ -133,6 +133,15 @@ const Reports = () => {
         }
     }, [user]);
 
+    const formatCurrency = (val) => {
+        const num = Number(val) || 0;
+        if (isNaN(num) || !isFinite(num)) return '0.00';
+        return num.toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+
     // Calculate statistics
     const calculateStats = (data) => {
         const totalRecords = data.length;
@@ -143,10 +152,10 @@ const Reports = () => {
 
         setStats({
             totalRecords,
-            totalAmount: totalAmount.toFixed(2),
-            paidAmount: paidAmount.toFixed(2),
-            toPayAmount: toPayAmount.toFixed(2),
-            creditAmount: creditAmount.toFixed(2),
+            totalAmount,
+            paidAmount,
+            toPayAmount,
+            creditAmount,
         });
     };
 
@@ -360,54 +369,53 @@ const Reports = () => {
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6 print:grid-cols-5">
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow-lg">
-                    <div className="flex items-center justify-between">
-                        <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 mb-6 print:hidden">
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-5 rounded-lg shadow-lg min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
                             <p className="text-purple-100 text-sm font-medium">Total Records</p>
-                            <p className="text-3xl font-bold mt-1">{stats.totalRecords}</p>
+                            <p className="text-2xl font-bold mt-1 truncate" title={stats.totalRecords.toLocaleString('en-IN')}>{stats.totalRecords.toLocaleString('en-IN')}</p>
                         </div>
-                        <Package className="w-12 h-12 text-purple-200" />
+                        <Package className="w-10 h-10 text-purple-200 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-lg shadow-lg">
-                    <div className="flex items-center justify-between">
-                        <div>
+                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-5 rounded-lg shadow-lg min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
                             <p className="text-green-100 text-sm font-medium">Total Amount</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.totalAmount}</p>
+                            <p className="text-2xl font-bold mt-1 truncate" title={`₹${formatCurrency(stats.totalAmount)}`}>₹{formatCurrency(stats.totalAmount)}</p>
                         </div>
-                        <DollarSign className="w-12 h-12 text-green-200" />
+                        <DollarSign className="w-10 h-10 text-green-200 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-lg">
-                    <div className="flex items-center justify-between">
-                        <div>
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-5 rounded-lg shadow-lg min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
                             <p className="text-blue-100 text-sm font-medium">Paid</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.paidAmount}</p>
+                            <p className="text-2xl font-bold mt-1 truncate" title={`₹${formatCurrency(stats.paidAmount)}`}>₹{formatCurrency(stats.paidAmount)}</p>
                         </div>
-                        <TrendingUp className="w-12 h-12 text-blue-200" />
+                        <TrendingUp className="w-10 h-10 text-blue-200 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-6 rounded-lg shadow-lg">
-                    <div className="flex items-center justify-between">
-                        <div>
+                <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-5 rounded-lg shadow-lg min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
                             <p className="text-yellow-100 text-sm font-medium">To Pay</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.toPayAmount}</p>
+                            <p className="text-2xl font-bold mt-1 truncate" title={`₹${formatCurrency(stats.toPayAmount)}`}>₹{formatCurrency(stats.toPayAmount)}</p>
                         </div>
-                        <TrendingUp className="w-12 h-12 text-yellow-200" />
+                        <TrendingUp className="w-10 h-10 text-yellow-200 shrink-0" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-lg shadow-lg">
-                    <div className="flex items-center justify-between">
-                        <div>
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-5 rounded-lg shadow-lg min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
                             <p className="text-orange-100 text-sm font-medium">Credit</p>
-                            <p className="text-2xl font-bold mt-1">₹{stats.creditAmount}</p>
+                            <p className="text-2xl font-bold mt-1 truncate" title={`₹${formatCurrency(stats.creditAmount)}`}>₹{formatCurrency(stats.creditAmount)}</p>
                         </div>
-                        <TrendingUp className="w-12 h-12 text-orange-200" />
                     </div>
                 </div>
             </div>

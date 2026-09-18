@@ -13,33 +13,42 @@ const generateToken = (id) => {
 // @route   POST /api/auth/login
 // @access  Public
 const loginUser = async (req, res) => {
-    const { email, password } = req.body;
-    // Allow login with either email or username
-    // Find all matching users and try each one
-    const users = await User.find({
-        $or: [{ email: email }, { username: email }]
-    });
-    
-    // Try to match password with each found user (prefer admin/branch roles)
-    const sortedUsers = users.sort((a, b) => {
-        const priority = { admin: 0, branch: 1, user: 2, customer: 3 };
-        return (priority[a.role] || 99) - (priority[b.role] || 99);
-    });
+    try {
+        const { email, password } = req.body;
 
-    for (const user of sortedUsers) {
-        if (await user.matchPassword(password)) {
-            return res.json({
-                _id: user._id,
-                name: user.name,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                token: generateToken(user._id),
-            });
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email/username and password are required' });
         }
-    }
 
-    res.status(401).json({ message: 'Invalid email/username or password' });
+        // Allow login with either email or username
+        const users = await User.find({
+            $or: [{ email: email }, { username: email }]
+        });
+
+        // Try to match password with each found user (prefer admin/branch roles)
+        const sortedUsers = users.sort((a, b) => {
+            const priority = { admin: 0, branch: 1, user: 2, customer: 3 };
+            return (priority[a.role] || 99) - (priority[b.role] || 99);
+        });
+
+        for (const user of sortedUsers) {
+            if (await user.matchPassword(password)) {
+                return res.json({
+                    _id: user._id,
+                    name: user.name,
+                    username: user.username,
+                    email: user.email,
+                    role: user.role,
+                    token: generateToken(user._id),
+                });
+            }
+        }
+
+        res.status(401).json({ message: 'Invalid email/username or password' });
+    } catch (error) {
+        console.error('[LOGIN ERROR]', error.message);
+        res.status(500).json({ message: 'Server error during login. Please try again.' });
+    }
 };
 
 // @desc    Register a new user

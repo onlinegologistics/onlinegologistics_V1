@@ -133,14 +133,22 @@ router.put('/:id', protect, async (req, res) => {
     }
 });
 
-// @desc    Delete a parcel record (admin only)
+// @desc    Delete a parcel record (admin or branch who created it)
 router.delete('/:id', protect, async (req, res) => {
     try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ message: 'Only admin can delete' });
+        if (!['admin', 'branch'].includes(req.user.role)) {
+            return res.status(403).json({ message: 'Not authorized to delete records' });
         }
-        const record = await ParcelRecord.findByIdAndDelete(req.params.id);
+
+        const record = await ParcelRecord.findById(req.params.id);
         if (!record) return res.status(404).json({ message: 'Record not found' });
+
+        // Branch can only delete their own records
+        if (req.user.role === 'branch' && record.createdBy?.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'You can only delete records you created' });
+        }
+
+        await ParcelRecord.findByIdAndDelete(req.params.id);
         res.json({ message: 'Record deleted' });
     } catch (error) {
         res.status(500).json({ message: error.message });
