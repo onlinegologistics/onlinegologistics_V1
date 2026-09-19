@@ -121,7 +121,8 @@ router.get('/', protect, async (req, res) => {
 
         const records = await ParcelRecord.find(filter)
             .populate('createdBy', 'name username')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
         res.json(records);
     } catch (error) {
         res.status(500).json({ message: error.message });

@@ -63,4 +63,8 @@ const parcelRecordSchema = mongoose.Schema({
     timestamps: true,
 });
 
+parcelRecordSchema.index({ createdAt: -1 });
+parcelRecordSchema.index({ clientType: 1, createdAt: -1 });
+parcelRecordSchema.index({ createdBy: 1, createdAt: -1 });
+
 module.exports = mongoose.model('ParcelRecord', parcelRecordSchema);

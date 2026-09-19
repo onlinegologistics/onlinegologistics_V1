@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
@@ -48,6 +48,7 @@ const AddRecord = () => {
     const [destinations, setDestinations] = useState([{ ...emptyDest }]);
     
     const [records, setRecords] = useState([]);
+    const [fetchingRecords, setFetchingRecords] = useState(true);
     const [loading, setLoading] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [filterType, setFilterType] = useState('');
@@ -56,14 +57,6 @@ const AddRecord = () => {
     const [itemsPerPage, setItemsPerPage] = useState(25);
     
     const [selectedRecord, setSelectedRecord] = useState(null); // For View Details modal
-
-    const [stats, setStats] = useState({
-        totalRecords: 0,
-        totalAmount: 0,
-        paidAmount: 0,
-        toPayAmount: 0,
-        creditAmount: 0,
-    });
 
     const config = { headers: { Authorization: `Bearer ${user?.token}` } };
 
@@ -81,71 +74,86 @@ const AddRecord = () => {
         });
     };
 
-    useEffect(() => {
+    const stats = useMemo(() => {
         let tRecords = records.length;
         let tAmount = 0;
         let pAmount = 0;
         let tpAmount = 0;
         let cAmount = 0;
 
-        records.forEach(r => {
+        for (let i = 0; i < records.length; i++) {
+            const r = records[i];
             const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
-            dests.forEach(d => {
+            for (let j = 0; j < dests.length; j++) {
+                const d = dests[j];
                 const amt = parseFloat(d.totalAmount) || 0;
-                if (!isNaN(amt) && isFinite(amt) && amt < 1e12) {
+                if (amt > 0 && amt < 1e12) {
                     tAmount += amt;
                     const pMode = d.paymentMode || r.paymentMode || 'Paid';
                     if (pMode === 'Paid') pAmount += amt;
                     else if (pMode === 'ToPay') tpAmount += amt;
                     else if (pMode === 'Credit') cAmount += amt;
                 }
-            });
-        });
+            }
+        }
 
-        setStats({
+        return {
             totalRecords: tRecords,
             totalAmount: tAmount,
             paidAmount: pAmount,
             toPayAmount: tpAmount,
             creditAmount: cAmount,
-        });
+        };
     }, [records]);
 
     const fetchRecords = async () => {
+        setFetchingRecords(true);
         try {
             const params = filterType ? { clientType: filterType } : {};
             const { data } = await axios.get('/api/parcel-records', { ...config, params });
             setRecords(data);
-        } catch (e) { toast.error('Failed to load records'); }
+        } catch (e) {
+            toast.error('Failed to load records');
+        } finally {
+            setFetchingRecords(false);
+        }
     };
 
-    const filteredRecords = records.filter(r => {
-        if (!searchQuery.trim()) return true;
+    const filteredRecords = useMemo(() => {
+        if (!searchQuery.trim()) return records;
         const q = searchQuery.toLowerCase().trim();
-        const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
-        const toCities = dests.map(d => d.toCity || '').join(' ').toLowerCase();
-        const clientName = (r.clientName || '').toLowerCase();
-        const mobile = (r.mobile || '').toLowerCase();
-        const company = (r.company || '').toLowerCase();
-        const fromCity = (r.fromCity || '').toLowerCase();
-        const branch = (r.createdBy?.name || '').toLowerCase();
-        const statuses = dests.map(d => d.status || '').join(' ').toLowerCase();
-        const dateStr = new Date(r.date).toLocaleDateString('en-IN').toLowerCase();
 
-        return clientName.includes(q) ||
-               mobile.includes(q) ||
-               company.includes(q) ||
-               fromCity.includes(q) ||
-               toCities.includes(q) ||
-               branch.includes(q) ||
-               statuses.includes(q) ||
-               dateStr.includes(q);
-    });
+        return records.filter(r => {
+            const clientName = (r.clientName || '').toLowerCase();
+            const mobile = String(r.mobile || '');
+            if (clientName.includes(q) || mobile.includes(q)) return true;
+
+            const company = (r.company || '').toLowerCase();
+            const fromCity = (r.fromCity || '').toLowerCase();
+            if (company.includes(q) || fromCity.includes(q)) return true;
+
+            const branch = (r.createdBy?.name || '').toLowerCase();
+            if (branch.includes(q)) return true;
+
+            const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
+            for (let i = 0; i < dests.length; i++) {
+                const d = dests[i];
+                if ((d.toCity && d.toCity.toLowerCase().includes(q)) ||
+                    (d.status && d.status.toLowerCase().includes(q))) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    }, [records, searchQuery]);
 
     const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentRecords = filteredRecords.slice(indexOfFirstItem, indexOfLastItem);
+    const currentRecords = useMemo(() => {
+        return filteredRecords.slice(indexOfFirstItem, indexOfLastItem);
+    }, [filteredRecords, indexOfFirstItem, indexOfLastItem]);
 
     useEffect(() => {
         if (currentPage > totalPages && totalPages > 0) {
@@ -501,7 +509,12 @@ const AddRecord = () => {
 
             {/* Records Table */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                {records.length === 0 ? (
+                {fetchingRecords ? (
+                    <div className="p-16 text-center flex flex-col items-center justify-center gap-3">
+                        <div className="animate-spin h-8 w-8 border-3 border-blue-600 border-t-transparent rounded-full" />
+                        <p className="text-gray-600 font-semibold text-sm">Loading records, please wait...</p>
+                    </div>
+                ) : records.length === 0 ? (
                     <div className="p-12 text-center">
                         <p className="text-gray-400 text-lg">No records found</p>
                         <p className="text-gray-300 text-sm mt-1">Add a record to get started</p>
