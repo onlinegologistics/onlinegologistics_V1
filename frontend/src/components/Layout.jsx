@@ -12,6 +12,8 @@ import {
   MessageCircle,
   MessageSquareWarning,
   PackageCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
   Smartphone,
   UserCircle,
   Users,
@@ -116,7 +118,7 @@ const UserPill = ({ user, stacked = false }) => (
   </div>
 );
 
-const SidebarNav = ({ navLinks, pathname, onNavigate }) => (
+const SidebarNav = ({ navLinks, pathname, onNavigate, isCollapsed = false }) => (
   <div className="flex flex-col gap-1">
     {navLinks.map((link) => {
       const Icon = link.icon;
@@ -127,14 +129,17 @@ const SidebarNav = ({ navLinks, pathname, onNavigate }) => (
           key={link.to}
           to={link.to}
           onClick={onNavigate}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+          title={isCollapsed ? link.label : undefined}
+          className={`flex items-center rounded-lg text-sm font-medium transition-colors ${
+            isCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+          } ${
             active
               ? "bg-cyan-400/15 text-cyan-100 ring-1 ring-cyan-300/20"
               : "text-gray-300 hover:bg-white/10 hover:text-white"
           }`}
         >
           <Icon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{link.label}</span>
+          {!isCollapsed && <span className="truncate">{link.label}</span>}
         </Link>
       );
     })}
@@ -142,42 +147,115 @@ const SidebarNav = ({ navLinks, pathname, onNavigate }) => (
     <Link
       to="/profile"
       onClick={onNavigate}
-      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+      title={isCollapsed ? "Profile" : undefined}
+      className={`flex items-center rounded-lg text-sm font-medium transition-colors ${
+        isCollapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
+      } ${
         isPathActive(pathname, "/profile")
           ? "bg-cyan-400/15 text-cyan-100 ring-1 ring-cyan-300/20"
           : "text-cyan-300 hover:bg-cyan-400/10 hover:text-cyan-100"
       }`}
     >
       <UserCircle className="h-4 w-4 shrink-0" />
-      <span className="truncate">Profile</span>
+      {!isCollapsed && <span className="truncate">Profile</span>}
     </Link>
   </div>
 );
 
-const PanelSidebar = ({ user, navLinks, pathname, logout, onNavigate }) => (
-  <aside className="flex h-full flex-col bg-slate-950 text-white">
-    <div className="border-b border-white/10 px-5 py-5">
-      <Brand />
-      <p className="mt-3 text-[0.65rem] font-medium uppercase tracking-widest text-gray-400">
-        {getRoleLabel(user?.role)}
-      </p>
+const PanelSidebar = ({
+  user,
+  navLinks,
+  pathname,
+  logout,
+  onNavigate,
+  isCollapsed = false,
+  onToggleCollapse,
+}) => (
+  <aside className="flex h-full flex-col bg-slate-950 text-white transition-all duration-300">
+    <div
+      className={`border-b border-white/10 py-4 flex items-center ${
+        isCollapsed ? "flex-col gap-3 px-2" : "justify-between px-4"
+      }`}
+    >
+      {!isCollapsed ? (
+        <>
+          <div className="min-w-0 flex-1">
+            <Brand />
+            <p className="mt-2 text-[0.65rem] font-medium uppercase tracking-widest text-gray-400">
+              {getRoleLabel(user?.role)}
+            </p>
+          </div>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              title="Close sidebar"
+              className="hidden lg:flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition shrink-0"
+              aria-label="Close sidebar"
+            >
+              <PanelLeftClose size={19} />
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              title="Open sidebar"
+              className="hidden lg:flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"
+              aria-label="Open sidebar"
+            >
+              <PanelLeftOpen size={20} />
+            </button>
+          )}
+          <Link
+            to="/dashboard"
+            className="bg-white p-1.5 rounded-xl border border-white/10 shadow hover:scale-105 transition"
+            title="Online Go Logistics"
+          >
+            <img src="/assets/logo.png" alt="Logo" className="h-7 w-7 object-contain" />
+          </Link>
+        </>
+      )}
     </div>
 
-    <div className="px-4 py-4">
-      <UserPill user={user} stacked />
+    <div className={isCollapsed ? "px-2 py-3" : "px-4 py-4"}>
+      {isCollapsed ? (
+        <div
+          className="mx-auto w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center relative cursor-default"
+          title={`${user?.name} (${user?.role})`}
+        >
+          <div className="w-2 h-2 rounded-full bg-green-500 absolute top-1.5 right-1.5" />
+          <span className="text-white font-bold text-sm">
+            {user?.name?.[0]?.toUpperCase() || "U"}
+          </span>
+        </div>
+      ) : (
+        <UserPill user={user} stacked />
+      )}
     </div>
 
-    <nav className="flex-1 overflow-y-auto px-4 pb-4">
-      <SidebarNav navLinks={navLinks} pathname={pathname} onNavigate={onNavigate} />
+    <nav className={`flex-1 overflow-y-auto ${isCollapsed ? "px-2 pb-3" : "px-4 pb-4"}`}>
+      <SidebarNav
+        navLinks={navLinks}
+        pathname={pathname}
+        onNavigate={onNavigate}
+        isCollapsed={isCollapsed}
+      />
     </nav>
 
-    <div className="border-t border-white/10 p-4">
+    <div className={`border-t border-white/10 ${isCollapsed ? "p-2" : "p-4"}`}>
       <button
         onClick={logout}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20"
+        title={isCollapsed ? "Logout" : undefined}
+        className={`flex w-full items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 ${
+          isCollapsed ? "p-2.5" : "gap-2 px-3 py-2.5"
+        }`}
       >
-        <LogOut className="h-4 w-4" />
-        <span>Logout</span>
+        <LogOut className="h-4 w-4 shrink-0" />
+        {!isCollapsed && <span>Logout</span>}
       </button>
     </div>
   </aside>
@@ -281,9 +359,20 @@ const TopNavLayout = ({ user, navLinks, logout }) => {
 const Layout = () => {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem("sidebar_collapsed") === "true";
+  });
   const location = useLocation();
   const navLinks = getNavLinks(user?.role);
   const useSidebar = user?.role === "admin" || user?.role === "branch";
+
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar_collapsed", String(next));
+      return next;
+    });
+  };
 
   if (!useSidebar) {
     return <TopNavLayout user={user} navLinks={navLinks} logout={logout} />;
@@ -291,12 +380,18 @@ const Layout = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 lg:flex">
-      <div className="hidden lg:sticky lg:top-0 lg:block lg:h-screen lg:w-72 lg:shrink-0 print:hidden">
+      <div
+        className={`hidden lg:sticky lg:top-0 lg:block lg:h-screen lg:shrink-0 print:hidden transition-all duration-300 ease-in-out ${
+          isCollapsed ? "lg:w-20" : "lg:w-72"
+        }`}
+      >
         <PanelSidebar
           user={user}
           navLinks={navLinks}
           pathname={location.pathname}
           logout={logout}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={toggleCollapse}
         />
       </div>
 
