@@ -2,7 +2,25 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
-import { Plus, Download, Trash2, Users, Briefcase, CalendarClock, ChevronUp, Eye, X, Package, DollarSign, TrendingUp } from 'lucide-react';
+import {
+    Plus,
+    Download,
+    Trash2,
+    Users,
+    Briefcase,
+    CalendarClock,
+    ChevronUp,
+    Eye,
+    X,
+    Package,
+    DollarSign,
+    TrendingUp,
+    Search,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+} from 'lucide-react';
 import ViewDetailsModal from '../components/ViewDetailsModal';
 
 const TABS = [
@@ -33,6 +51,9 @@ const AddRecord = () => {
     const [loading, setLoading] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [filterType, setFilterType] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
     
     const [selectedRecord, setSelectedRecord] = useState(null); // For View Details modal
 
@@ -46,7 +67,10 @@ const AddRecord = () => {
 
     const config = { headers: { Authorization: `Bearer ${user?.token}` } };
 
-    useEffect(() => { fetchRecords(); }, [filterType]);
+    useEffect(() => {
+        fetchRecords();
+        setCurrentPage(1);
+    }, [filterType]);
 
     const formatCurrency = (val) => {
         const num = Number(val) || 0;
@@ -94,6 +118,40 @@ const AddRecord = () => {
             setRecords(data);
         } catch (e) { toast.error('Failed to load records'); }
     };
+
+    const filteredRecords = records.filter(r => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase().trim();
+        const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
+        const toCities = dests.map(d => d.toCity || '').join(' ').toLowerCase();
+        const clientName = (r.clientName || '').toLowerCase();
+        const mobile = (r.mobile || '').toLowerCase();
+        const company = (r.company || '').toLowerCase();
+        const fromCity = (r.fromCity || '').toLowerCase();
+        const branch = (r.createdBy?.name || '').toLowerCase();
+        const statuses = dests.map(d => d.status || '').join(' ').toLowerCase();
+        const dateStr = new Date(r.date).toLocaleDateString('en-IN').toLowerCase();
+
+        return clientName.includes(q) ||
+               mobile.includes(q) ||
+               company.includes(q) ||
+               fromCity.includes(q) ||
+               toCities.includes(q) ||
+               branch.includes(q) ||
+               statuses.includes(q) ||
+               dateStr.includes(q);
+    });
+
+    const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentRecords = filteredRecords.slice(indexOfFirstItem, indexOfLastItem);
+
+    useEffect(() => {
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(totalPages);
+        }
+    }, [totalPages, currentPage]);
 
     const handleClientChange = (e) => {
         setClientForm({ ...clientForm, [e.target.name]: e.target.value });
@@ -143,8 +201,12 @@ const AddRecord = () => {
                 destinations: destinations
             };
 
-            await axios.post('/api/parcel-records', payload, config);
-            toast.success('Record added successfully! ✅');
+            const { data } = await axios.post('/api/parcel-records', payload, config);
+            if (data?.whatsappSent) {
+                toast.success('Record added & WhatsApp confirmation sent! 📱✅');
+            } else {
+                toast.success('Record added successfully! ✅');
+            }
 
             setClientForm({ ...emptyClient, fromCity: 'Pune' });
             setDestinations([{ ...emptyDest }]);
@@ -374,16 +436,67 @@ const AddRecord = () => {
                 </div>
             )}
 
-            {/* Filter Bar */}
-            <div className="flex items-center gap-2 flex-wrap mt-4">
-                <span className="text-sm font-semibold text-gray-500">Filter:</span>
-                {[{ id: '', label: 'All' }, { id: 'regular', label: 'Client' }, { id: 'agent', label: 'Agent' }, { id: 'Customer', label: 'Customer' }].map(f => (
-                    <button key={f.id} onClick={() => setFilterType(f.id)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${filterType === f.id ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                        {f.label}
-                    </button>
-                ))}
-                <span className="ml-auto text-sm text-gray-400">{records.length} records</span>
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mt-4">
+                {/* Type Filters */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-gray-500">Filter:</span>
+                    {[{ id: '', label: 'All' }, { id: 'regular', label: 'Client' }, { id: 'agent', label: 'Agent' }, { id: 'Customer', label: 'Customer' }].map(f => (
+                        <button key={f.id} onClick={() => { setFilterType(f.id); setCurrentPage(1); }}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${filterType === f.id ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Search & Pagination Settings */}
+                <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+                    {/* Search Field */}
+                    <div className="relative flex-1 sm:w-72">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                            placeholder="Search client, mobile, route..."
+                            className="w-full pl-9 pr-8 py-1.5 text-sm bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition"
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
+                                title="Clear Search"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Items Per Page */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <select
+                            value={itemsPerPage}
+                            onChange={(e) => {
+                                setItemsPerPage(Number(e.target.value));
+                                setCurrentPage(1);
+                            }}
+                            className="border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer"
+                        >
+                            <option value={10}>10 / page</option>
+                            <option value={25}>25 / page</option>
+                            <option value={50}>50 / page</option>
+                            <option value={100}>100 / page</option>
+                        </select>
+                    </div>
+
+                    <span className="text-xs text-gray-500 font-medium shrink-0 hidden lg:inline">
+                        {filteredRecords.length.toLocaleString('en-IN')} records
+                    </span>
+                </div>
             </div>
 
             {/* Records Table */}
@@ -393,64 +506,186 @@ const AddRecord = () => {
                         <p className="text-gray-400 text-lg">No records found</p>
                         <p className="text-gray-300 text-sm mt-1">Add a record to get started</p>
                     </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm table-fixed">
-                            <thead>
-                                <tr className="bg-gray-50 text-left">
-                                    <th className="w-8 px-3 py-3 text-xs font-bold text-gray-500 uppercase">#</th>
-                                    <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Date</th>
-                                    <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Mobile No</th>
-                                    <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Client</th>
-                                    <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Company</th>
-                                    <th className="w-36 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Route</th>
-                                    <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-center">Parcels</th>
-                                    <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Total ₹</th>
-                                    <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Status</th>
-                                    {user?.role === 'admin' && <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Branch</th>}
-                                    <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {records.map((r, i) => {
-                                    const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
-                                    const toCityStr = dests.map(d => d.toCity).join(', ');
-                                    const totalParcels = dests.reduce((sum, d) => sum + (Number(d.noOfParcels) || 0), 0);
-                                    const totalAmount = dests.reduce((sum, d) => sum + (Number(d.totalAmount) || 0), 0);
-                                    const statuses = [...new Set(dests.map(d => d.status))];
-                                    const displayStatus = statuses.length === 1 ? statuses[0] : 'Mixed';
-
-                                    return (
-                                        <tr key={r._id} className="hover:bg-gray-50/50">
-                                            <td className="px-3 py-3 text-gray-500">{i + 1}</td>
-                                            <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{new Date(r.date).toLocaleDateString('en-IN')}</td>
-                                            <td className="px-3 py-3 whitespace-nowrap">
-                                                {r.mobile ? (
-                                                    <a href={`tel:${r.mobile}`} className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-xs">
-                                                        {r.mobile}
-                                                    </a>
-                                                ) : (
-                                                    <span className="text-gray-400">—</span>
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-3 font-semibold text-gray-800 truncate" title={r.clientName}>{r.clientName}</td>
-                                            <td className="px-3 py-3 text-gray-600 truncate" title={r.company || ''}>{r.company || '-'}</td>
-                                            <td className="px-3 py-3 text-gray-600 truncate" title={`${r.fromCity} → ${toCityStr}`}>
-                                                <span className="text-xs">{r.fromCity} → <span className="font-semibold">{toCityStr}</span></span>
-                                            </td>
-                                            <td className="px-3 py-3 text-gray-700 font-semibold text-center">{totalParcels}</td>
-                                            <td className="px-3 py-3 font-bold text-green-700 whitespace-nowrap">₹{totalAmount}</td>
-                                            <td className="px-3 py-3">{statusBadge(displayStatus)}</td>
-                                            {user?.role === 'admin' && <td className="px-3 py-3 text-gray-500 text-xs truncate">{r.createdBy?.name || '-'}</td>}
-                                            <td className="px-3 py-3 flex gap-1 justify-end">
-                                                <button onClick={() => setSelectedRecord(r)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Eye size={15} /></button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                ) : filteredRecords.length === 0 ? (
+                    <div className="p-12 text-center">
+                        <p className="text-gray-500 font-semibold text-base">No matching records found</p>
+                        <p className="text-gray-400 text-xs mt-1">No results matching "{searchQuery}". Try another keyword or clear search.</p>
+                        <button
+                            onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
+                            className="mt-3 px-3.5 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                        >
+                            Clear Search
+                        </button>
                     </div>
+                ) : (
+                    <>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm table-fixed">
+                                <thead>
+                                    <tr className="bg-gray-50 text-left">
+                                        <th className="w-12 px-3 py-3 text-xs font-bold text-gray-500 uppercase">#</th>
+                                        <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Date</th>
+                                        <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Mobile No</th>
+                                        <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Client</th>
+                                        <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Company</th>
+                                        <th className="w-36 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Route</th>
+                                        <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-center">Parcels</th>
+                                        <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Total ₹</th>
+                                        <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                        {user?.role === 'admin' && <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Branch</th>}
+                                        <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {currentRecords.map((r, idx) => {
+                                        const i = indexOfFirstItem + idx;
+                                        const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
+                                        const toCityStr = dests.map(d => d.toCity).join(', ');
+                                        const totalParcels = dests.reduce((sum, d) => sum + (Number(d.noOfParcels) || 0), 0);
+                                        const totalAmount = dests.reduce((sum, d) => sum + (Number(d.totalAmount) || 0), 0);
+                                        const statuses = [...new Set(dests.map(d => d.status))];
+                                        const displayStatus = statuses.length === 1 ? statuses[0] : 'Mixed';
+
+                                        return (
+                                            <tr key={r._id} className="hover:bg-gray-50/50">
+                                                <td className="px-3 py-3 text-gray-500">{i + 1}</td>
+                                                <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{new Date(r.date).toLocaleDateString('en-IN')}</td>
+                                                <td className="px-3 py-3 whitespace-nowrap">
+                                                    {r.mobile ? (
+                                                        <a href={`tel:${r.mobile}`} className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-xs">
+                                                            {r.mobile}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-gray-400">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-3 font-semibold text-gray-800 truncate" title={r.clientName}>{r.clientName}</td>
+                                                <td className="px-3 py-3 text-gray-600 truncate" title={r.company || ''}>{r.company || '-'}</td>
+                                                <td className="px-3 py-3 text-gray-600 truncate" title={`${r.fromCity} → ${toCityStr}`}>
+                                                    <span className="text-xs">{r.fromCity} → <span className="font-semibold">{toCityStr}</span></span>
+                                                </td>
+                                                <td className="px-3 py-3 text-gray-700 font-semibold text-center">{totalParcels}</td>
+                                                <td className="px-3 py-3 font-bold text-green-700 whitespace-nowrap">₹{totalAmount}</td>
+                                                <td className="px-3 py-3">{statusBadge(displayStatus)}</td>
+                                                {user?.role === 'admin' && <td className="px-3 py-3 text-gray-500 text-xs truncate">{r.createdBy?.name || '-'}</td>}
+                                                <td className="px-3 py-3 flex gap-1 justify-end">
+                                                    <button onClick={() => setSelectedRecord(r)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="View Details"><Eye size={15} /></button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination Bar */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border-t border-gray-100 rounded-b-xl">
+                            <div className="text-xs text-gray-500">
+                                Showing <span className="font-semibold text-gray-700">{filteredRecords.length === 0 ? 0 : indexOfFirstItem + 1}</span> to{' '}
+                                <span className="font-semibold text-gray-700">{Math.min(indexOfLastItem, filteredRecords.length)}</span> of{' '}
+                                <span className="font-semibold text-gray-700">{filteredRecords.length.toLocaleString('en-IN')}</span> records
+                                {searchQuery && ` (filtered from ${records.length.toLocaleString('en-IN')})`}
+                            </div>
+
+                            {totalPages > 1 && (
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setCurrentPage(1)}
+                                        disabled={currentPage === 1}
+                                        title="First Page"
+                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                                    >
+                                        <ChevronsLeft size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        title="Previous Page"
+                                        className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium flex items-center gap-1 transition"
+                                    >
+                                        <ChevronLeft size={15} />
+                                        <span className="hidden sm:inline">Prev</span>
+                                    </button>
+
+                                    {(() => {
+                                        const maxVisible = 5;
+                                        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                                        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                                        if (endPage - startPage < maxVisible - 1) {
+                                            startPage = Math.max(1, endPage - maxVisible + 1);
+                                        }
+
+                                        const pages = [];
+                                        if (startPage > 1) {
+                                            pages.push(
+                                                <button
+                                                    key={1}
+                                                    onClick={() => setCurrentPage(1)}
+                                                    className="w-8 h-8 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                                                >
+                                                    1
+                                                </button>
+                                            );
+                                            if (startPage > 2) {
+                                                pages.push(<span key="start-dots" className="px-1 text-gray-400 text-xs">...</span>);
+                                            }
+                                        }
+
+                                        for (let p = startPage; p <= endPage; p++) {
+                                            pages.push(
+                                                <button
+                                                    key={p}
+                                                    onClick={() => setCurrentPage(p)}
+                                                    className={`w-8 h-8 rounded-lg text-xs font-bold transition ${
+                                                        currentPage === p
+                                                            ? 'bg-blue-600 text-white shadow-sm'
+                                                            : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            );
+                                        }
+
+                                        if (endPage < totalPages) {
+                                            if (endPage < totalPages - 1) {
+                                                pages.push(<span key="end-dots" className="px-1 text-gray-400 text-xs">...</span>);
+                                            }
+                                            pages.push(
+                                                <button
+                                                    key={totalPages}
+                                                    onClick={() => setCurrentPage(totalPages)}
+                                                    className="w-8 h-8 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                                                >
+                                                    {totalPages}
+                                                </button>
+                                            );
+                                        }
+
+                                        return pages;
+                                    })()}
+
+                                    <button
+                                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        title="Next Page"
+                                        className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium flex items-center gap-1 transition"
+                                    >
+                                        <span className="hidden sm:inline">Next</span>
+                                        <ChevronRight size={15} />
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage(totalPages)}
+                                        disabled={currentPage === totalPages}
+                                        title="Last Page"
+                                        className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                                    >
+                                        <ChevronsRight size={16} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </>
                 )}
             </div>
 

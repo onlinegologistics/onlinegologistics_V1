@@ -132,6 +132,12 @@ const WhatsApp = () => {
                             <CheckCircle2 size={22} />
                             WhatsApp Connected ✅
                         </div>
+                        {status.phone && (
+                            <div className="bg-gray-50 border border-gray-200 px-4 py-2 rounded-xl text-sm">
+                                <span className="text-gray-500">Connected Device Number: </span>
+                                <span className="font-bold text-gray-800">+{status.phone}</span>
+                            </div>
+                        )}
                         <p className="text-gray-500 text-sm">
                             Booking confirmations ab automatically WhatsApp par bhej di jayengi. Aap chahein to session ko disconnect / logout kar sakte hain.
                         </p>

@@ -18,6 +18,7 @@ const RECONNECT_DELAY_MS = 3000;
 
 let sock = null;
 let connected = false;
+let connectedPhone = null;
 let qrDataUrl = null;
 let connectionState = 'idle';
 let statusMessage = 'WhatsApp has not started yet';
@@ -90,6 +91,7 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
     const previousSocket = sock;
     sock = null;
     connected = false;
+    connectedPhone = null;
     qrDataUrl = null;
 
     if (previousSocket) {
@@ -202,6 +204,9 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
                 connected = true;
                 qrDataUrl = null;
                 staleSessionResetAttempted = false;
+                connectedPhone = currentSocket?.user?.id
+                    ? currentSocket.user.id.split(':')[0].split('@')[0]
+                    : (state?.creds?.me?.id ? state.creds.me.id.split(':')[0].split('@')[0] : null);
                 updateStatus('connected', 'WhatsApp is connected');
             }
 
@@ -212,6 +217,7 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
                 }
 
                 connected = false;
+                connectedPhone = null;
                 qrDataUrl = null;
                 sock = null;
 
@@ -334,6 +340,7 @@ const logoutWhatsApp = async () => {
 
 const getWhatsAppStatus = () => ({
     connected,
+    phone: connectedPhone,
     qr: qrDataUrl,
     state: connectionState,
     message: statusMessage,
@@ -344,6 +351,9 @@ const getWhatsAppStatus = () => ({
 const normalizePhone = (phone) => {
     let digits = String(phone || '').replace(/\D/g, '');
 
+    if (digits.startsWith('0') && digits.length === 11) {
+        digits = digits.substring(1);
+    }
     if (digits.length === 10) {
         digits = `91${digits}`;
     }

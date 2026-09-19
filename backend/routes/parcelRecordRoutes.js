@@ -78,16 +78,25 @@ router.post('/', protect, async (req, res) => {
             createdBy: req.user._id,
         });
 
+        let whatsappSent = false;
+        let whatsappError = null;
         if (record.mobile) {
             try {
                 const message = buildBookingConfirmationMessage(record);
                 await sendWhatsAppMessage(record.mobile, message);
+                whatsappSent = true;
+                console.log(`[WhatsApp] Booking confirmation sent to ${record.mobile}`);
             } catch (waError) {
-                console.error('WhatsApp booking confirmation failed:', waError.message);
+                whatsappError = waError.message;
+                console.error(`[WhatsApp] Failed sending to ${record.mobile}:`, waError.message);
             }
         }
 
-        res.status(201).json(record);
+        res.status(201).json({
+            ...record.toObject(),
+            whatsappSent,
+            whatsappError,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
