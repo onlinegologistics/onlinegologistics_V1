@@ -280,12 +280,18 @@ const MobileUsers = ({ shipmentOnly = false }) => {
 
   // Filter calculations
   const filteredData = useMemo(() => {
+    const searchLower = (searchTerm || "").trim().toLowerCase();
+
     if (activeTab === "users") {
       return users.filter((u) => {
         const matchesSearch =
-          (u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (u.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (u.mobile || "").includes(searchTerm);
+          !searchLower ||
+          (u.name || "").toLowerCase().includes(searchLower) ||
+          (u.email || "").toLowerCase().includes(searchLower) ||
+          (u.username || "").toLowerCase().includes(searchLower) ||
+          (u.address || "").toLowerCase().includes(searchLower) ||
+          (u.mobile || "").includes(searchLower) ||
+          (u.altMobile || "").includes(searchLower);
         const matchesStatus =
           statusFilter === "" ||
           (statusFilter === "Active" && u.isActive) ||
@@ -312,16 +318,23 @@ const MobileUsers = ({ shipmentOnly = false }) => {
           );
 
         const matchingShipments = validShipments.filter((s) => {
-          const searchLower = searchTerm.toLowerCase();
           const matchesSearch =
+            !searchLower ||
             (s.customerName || "").toLowerCase().includes(searchLower) ||
             (s.lrNumber || "").toLowerCase().includes(searchLower) ||
             (s.trackingId || "").toLowerCase().includes(searchLower) ||
             (s.pickupCity || "").toLowerCase().includes(searchLower) ||
             (s.deliveryCity || "").toLowerCase().includes(searchLower) ||
+            (s.pickupAddress || "").toLowerCase().includes(searchLower) ||
+            (s.deliveryAddress || "").toLowerCase().includes(searchLower) ||
+            (s.parcelType || "").toLowerCase().includes(searchLower) ||
+            (s.transportType || "").toLowerCase().includes(searchLower) ||
+            (s.mobileNumber || "").toLowerCase().includes(searchLower) ||
             (u.name || "").toLowerCase().includes(searchLower) ||
             (u.email || "").toLowerCase().includes(searchLower) ||
-            (u.mobile || "").includes(searchTerm);
+            (u.username || "").toLowerCase().includes(searchLower) ||
+            (u.mobile || "").includes(searchLower) ||
+            (u.altMobile || "").includes(searchLower);
 
           const sStatus = s.currentShipmentStatus || s.currentStatus || "Pickup Pending";
           const normalizedStatus = sStatus === "Pending" ? "Pickup Pending" : sStatus;
@@ -348,10 +361,11 @@ const MobileUsers = ({ shipmentOnly = false }) => {
       return enquiries.filter((e) => {
         const userName = e.user?.name || e.name || "";
         const matchesSearch =
-          userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (e.mobile || "").includes(searchTerm) ||
-          (e.subject || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (e.message || "").toLowerCase().includes(searchTerm.toLowerCase());
+          !searchLower ||
+          userName.toLowerCase().includes(searchLower) ||
+          (e.mobile || "").includes(searchLower) ||
+          (e.subject || "").toLowerCase().includes(searchLower) ||
+          (e.message || "").toLowerCase().includes(searchLower);
         const matchesStatus = statusFilter === "" || e.status === statusFilter;
         return matchesSearch && matchesStatus;
       });
@@ -359,15 +373,12 @@ const MobileUsers = ({ shipmentOnly = false }) => {
       return complaints.filter((c) => {
         const reporterName = c.user?.name || c.contactName || "";
         const matchesSearch =
-          reporterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (c.contactMobile || "").includes(searchTerm) ||
-          (c.receiptNo || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (c.subject || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (c.description || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase());
+          !searchLower ||
+          reporterName.toLowerCase().includes(searchLower) ||
+          (c.contactMobile || "").includes(searchLower) ||
+          (c.receiptNo || "").toLowerCase().includes(searchLower) ||
+          (c.subject || "").toLowerCase().includes(searchLower) ||
+          (c.description || "").toLowerCase().includes(searchLower);
         const matchesStatus = statusFilter === "" || c.status === statusFilter;
         const matchesPriority =
           priorityFilter === "" || c.priority === priorityFilter;
@@ -1006,185 +1017,230 @@ const MobileUsers = ({ shipmentOnly = false }) => {
         </div>
       )}
 
-      {/* Filter Bar — inline search + pill tabs */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 print:hidden">
-        {/* Search */}
-        <div className="relative flex-1 max-w-xs">
-          <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-            <Search size={15} />
-          </span>
-          <input
-            type="text"
-            placeholder={
-              activeTab === "users"
-                ? "Search name, email, mobile…"
-                : activeTab === "shipments"
-                  ? "Search customer, tracking ID…"
-                  : activeTab === "enquiries"
-                    ? "Search name, mobile, subject…"
-                    : "Search name, mobile, subject…"
-            }
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 w-full rounded-xl border border-slate-200 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition duration-150 bg-slate-50/60"
-          />
+      {/* Filter Bar — Spacious Search + Status Pills */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 space-y-3.5 print:hidden">
+        {/* Row 1: Search Bar & Controls */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Input with guaranteed width and clear button */}
+          <div className="relative flex-1 max-w-xl min-w-[280px]">
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Search size={16} />
+            </span>
+            <input
+              type="text"
+              placeholder={
+                activeTab === "users"
+                  ? "Search by user name, email, mobile number, address…"
+                  : activeTab === "shipments"
+                    ? "Search customer, tracking ID, LR number, mobile, city…"
+                    : activeTab === "enquiries"
+                      ? "Search name, mobile, subject, message…"
+                      : "Search receipt no, name, mobile, subject…"
+              }
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-9 w-full rounded-xl border border-slate-200 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition duration-150 bg-slate-50/70 focus:bg-white shadow-inner"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition"
+                title="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {/* Row 1 Right: Date Picker, Count Pill, and Clear All */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Date picker inline for shipments */}
+            {activeTab === "shipments" && (
+              <div className="flex items-center gap-1.5 bg-slate-50/80 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-600">
+                <Calendar size={13} className="text-purple-600 shrink-0" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date:</span>
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  title="Filter by expected delivery date"
+                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                />
+                {dateFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setDateFilter("")}
+                    className="text-slate-400 hover:text-rose-500 ml-0.5"
+                    title="Clear date"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Total Results Counter */}
+            <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-xl">
+              {activeTab === "shipments"
+                ? `${filteredData.reduce((acc, g) => acc + (g.shipments?.length || 0), 0)} Shipments`
+                : `${filteredData.length} ${
+                    activeTab === "users"
+                      ? "Users"
+                      : activeTab === "enquiries"
+                        ? "Enquiries"
+                        : "Complaints"
+                  }`}
+            </span>
+
+            {/* Clear All Filters button */}
+            {(statusFilter ||
+              searchTerm ||
+              transportFilter ||
+              dateFilter ||
+              priorityFilter) && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition duration-150"
+                title="Clear all filters"
+              >
+                <X size={13} /> Clear All
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Divider */}
-        <div className="hidden sm:block w-px h-7 bg-slate-200" />
+        {/* Row 2: Status Pills */}
+        <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5 mr-1">
+            <Filter size={12} className="text-purple-600" /> Filter:
+          </span>
 
-        {/* Filter label */}
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5">
-          <Filter size={12} /> Filter:
-        </span>
-
-        {/* Pill tabs — Users */}
-        {activeTab === "users" && (
-          <div className="flex flex-wrap gap-1.5">
-            {["", "Active", "Blocked"].map((val) => (
-              <button
-                key={val}
-                onClick={() => setStatusFilter(val)}
-                className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
-                  statusFilter === val
-                    ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
-                }`}
-              >
-                {val === "" ? "All" : val}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Pill tabs — Shipments */}
-        {activeTab === "shipments" && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {[
-              "",
-              "Pickup Pending",
-              "Accepted",
-              "Picked Up",
-              "At Branch",
-              "In Transit",
-              "Destination Arrived",
-              "Out for Delivery",
-              "Delivered",
-              "Cancelled",
-              "Issue",
-            ].map((val) => (
-              <button
-                key={val}
-                onClick={() => setStatusFilter(val)}
-                className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
-                  statusFilter === val
-                    ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
-                }`}
-              >
-                {val === "" ? "All" : val}
-              </button>
-            ))}
-            {/* Date picker inline for shipments */}
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              title="Filter by expected delivery date"
-              className="ml-1 rounded-xl border border-slate-200 px-3 py-1.5 text-[11px] font-semibold text-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition duration-150 bg-slate-50/60"
-            />
-          </div>
-        )}
-
-        {/* Pill tabs — Enquiries */}
-        {activeTab === "enquiries" && (
-          <div className="flex flex-wrap gap-1.5">
-            {["", "Open", "In Progress", "Resolved", "Closed"].map((val) => (
-              <button
-                key={val}
-                onClick={() => setStatusFilter(val)}
-                className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
-                  statusFilter === val
-                    ? val === ""
+          {/* Pill tabs — Users */}
+          {activeTab === "users" && (
+            <div className="flex flex-wrap gap-1.5">
+              {["", "Active", "Blocked"].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => setStatusFilter(val)}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
+                    statusFilter === val
                       ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                      : val === "Open"
-                        ? "bg-sky-500 text-white border-sky-500 shadow-sm"
-                        : val === "In Progress"
-                          ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                          : val === "Resolved"
-                            ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
-                            : "bg-slate-500 text-white border-slate-500 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
-                }`}
-              >
-                {val === "" ? "All" : val}
-              </button>
-            ))}
-          </div>
-        )}
+                      : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
+                  }`}
+                >
+                  {val === "" ? "All" : val}
+                </button>
+              ))}
+            </div>
+          )}
 
-        {/* Pill tabs — Complaints */}
-        {activeTab === "complaints" && (
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {["", "Open", "In Progress", "Resolved", "Closed"].map((val) => (
-              <button
-                key={val}
-                onClick={() => setStatusFilter(val)}
-                className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
-                  statusFilter === val
-                    ? val === ""
+          {/* Pill tabs — Shipments */}
+          {activeTab === "shipments" && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {[
+                "",
+                "Pickup Pending",
+                "Accepted",
+                "Picked Up",
+                "At Branch",
+                "In Transit",
+                "Destination Arrived",
+                "Out for Delivery",
+                "Delivered",
+                "Cancelled",
+                "Issue",
+              ].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => setStatusFilter(val)}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
+                    statusFilter === val
                       ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                      : val === "Open"
-                        ? "bg-rose-500 text-white border-rose-500 shadow-sm"
-                        : val === "In Progress"
-                          ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                          : val === "Resolved"
-                            ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
-                            : "bg-slate-500 text-white border-slate-500 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
-                }`}
-              >
-                {val === "" ? "All" : val}
-              </button>
-            ))}
-            {/* Priority pills */}
-            <div className="w-px h-5 bg-slate-200 mx-1" />
-            {["", "Low", "Medium", "High"].map((val) => (
-              <button
-                key={`priority-${val}`}
-                onClick={() => setPriorityFilter(val)}
-                className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
-                  priorityFilter === val
-                    ? val === ""
-                      ? "bg-slate-600 text-white border-slate-600 shadow-sm"
-                      : val === "Low"
-                        ? "bg-teal-500 text-white border-teal-500 shadow-sm"
-                        : val === "Medium"
-                          ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                          : "bg-red-500 text-white border-red-500 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-700"
-                }`}
-              >
-                {val === "" ? "Priority: All" : val}
-              </button>
-            ))}
-          </div>
-        )}
+                      : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
+                  }`}
+                >
+                  {val === "" ? "All" : val}
+                </button>
+              ))}
+            </div>
+          )}
 
-        {/* Clear all — only show when a filter is active */}
-        {(statusFilter ||
-          searchTerm ||
-          transportFilter ||
-          dateFilter ||
-          priorityFilter) && (
-          <button
-            onClick={clearFilters}
-            className="ml-auto shrink-0 flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-rose-500 transition duration-200"
-            title="Clear all filters"
-          >
-            <X size={13} /> Clear
-          </button>
-        )}
+          {/* Pill tabs — Enquiries */}
+          {activeTab === "enquiries" && (
+            <div className="flex flex-wrap gap-1.5">
+              {["", "Open", "In Progress", "Resolved", "Closed"].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => setStatusFilter(val)}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
+                    statusFilter === val
+                      ? val === ""
+                        ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                        : val === "Open"
+                          ? "bg-sky-500 text-white border-sky-500 shadow-sm"
+                          : val === "In Progress"
+                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                            : val === "Resolved"
+                              ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                              : "bg-slate-500 text-white border-slate-500 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
+                  }`}
+                >
+                  {val === "" ? "All" : val}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Pill tabs — Complaints */}
+          {activeTab === "complaints" && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {["", "Open", "In Progress", "Resolved", "Closed"].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => setStatusFilter(val)}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
+                    statusFilter === val
+                      ? val === ""
+                        ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                        : val === "Open"
+                          ? "bg-rose-500 text-white border-rose-500 shadow-sm"
+                          : val === "In Progress"
+                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                            : val === "Resolved"
+                              ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                              : "bg-slate-500 text-white border-slate-500 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:text-purple-600"
+                  }`}
+                >
+                  {val === "" ? "All" : val}
+                </button>
+              ))}
+              {/* Priority pills */}
+              <div className="w-px h-5 bg-slate-200 mx-1" />
+              {["", "Low", "Medium", "High"].map((val) => (
+                <button
+                  key={`priority-${val}`}
+                  onClick={() => setPriorityFilter(val)}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition duration-200 border whitespace-nowrap ${
+                    priorityFilter === val
+                      ? val === ""
+                        ? "bg-slate-600 text-white border-slate-600 shadow-sm"
+                        : val === "Low"
+                          ? "bg-teal-500 text-white border-teal-500 shadow-sm"
+                          : val === "Medium"
+                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                            : "bg-red-500 text-white border-red-500 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-700"
+                  }`}
+                >
+                  {val === "" ? "Priority: All" : val}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tables Container */}
