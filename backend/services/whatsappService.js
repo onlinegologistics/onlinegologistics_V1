@@ -13,7 +13,7 @@ const {
 } = baileys;
 
 const AUTH_FOLDER = path.join(__dirname, '..', 'wa-auth');
-const STARTUP_TIMEOUT_MS = Number(process.env.WHATSAPP_STARTUP_TIMEOUT_MS) || 15000;
+const STARTUP_TIMEOUT_MS = Number(process.env.WHATSAPP_STARTUP_TIMEOUT_MS) || 45000;
 const RECONNECT_DELAY_MS = 3000;
 
 let sock = null;
@@ -51,17 +51,21 @@ const errorMessage = (error) => error?.message || String(error || 'Unknown Whats
 const clearAuthFolder = () => {
     try {
         if (fs.existsSync(AUTH_FOLDER)) {
-            fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
-        }
-    } catch (error) {
-        console.warn('Could not remove auth folder cleanly:', errorMessage(error));
-    }
-    try {
-        if (!fs.existsSync(AUTH_FOLDER)) {
+            // Delete folder contents instead of the directory itself (safe for Docker volume mounts)
+            const files = fs.readdirSync(AUTH_FOLDER);
+            for (const file of files) {
+                const fullPath = path.join(AUTH_FOLDER, file);
+                try {
+                    fs.rmSync(fullPath, { recursive: true, force: true });
+                } catch (fileErr) {
+                    console.warn(`Could not remove ${fullPath}:`, errorMessage(fileErr));
+                }
+            }
+        } else {
             fs.mkdirSync(AUTH_FOLDER, { recursive: true });
         }
     } catch (error) {
-        console.error('Could not create auth folder:', errorMessage(error));
+        console.warn('Could not clean auth folder:', errorMessage(error));
     }
 };
 
@@ -118,13 +122,17 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
         let version;
         try {
             if (typeof fetchLatestBaileysVersion === 'function') {
-                const versionData = await fetchLatestBaileysVersion();
+                const versionData = await Promise.race([
+                    fetchLatestBaileysVersion(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Baileys version fetch timeout')), 4000)),
+                ]);
                 version = versionData?.version;
             }
         } catch (vErr) {
-            console.warn('Could not fetch latest Baileys version:', vErr.message);
+            console.warn('Could not fetch latest Baileys version (using bundled default):', vErr.message);
         }
 
+        const logLevel = process.env.WHATSAPP_LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'warn' : 'warn');
         const socketOptions = {
             auth: {
                 creds: state.creds,
@@ -132,7 +140,7 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
                     ? makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
                     : state.keys,
             },
-            logger: pino({ level: 'silent' }),
+            logger: pino({ level: logLevel }),
             printQRInTerminal: false,
             syncFullHistory: false,
             generateHighQualityLinkPreview: false,
@@ -177,6 +185,10 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
+                if (startupTimer) {
+                    clearTimeout(startupTimer);
+                    startupTimer = null;
+                }
                 qrDataUrl = await QRCode.toDataURL(qr);
                 if (generation !== sessionGeneration) return;
                 updateStatus('qr', 'Scan the QR code to connect WhatsApp');
@@ -235,20 +247,23 @@ const startWhatsApp = async ({ resetAuth = false } = {}) => {
                 const message = errorMessage(error);
                 console.error('WhatsApp stale-session recovery failed:', message);
                 updateStatus('error', 'Could not generate a new WhatsApp QR code', message);
-                scheduleReconnect(false);
             });
             return;
         }
 
-        // If no QR generated within timeout, attempt fresh start
-        startWhatsApp({ resetAuth: true }).catch((error) => {
-            const message = errorMessage(error);
-            console.error('WhatsApp fresh restart failed:', message);
-            updateStatus(
-                'error',
-                'WhatsApp QR code could not be generated. Check the VPS internet connection and try again.'
-            );
-        });
+        // Timeout reached without QR code or connection: stop looping, report error
+        console.warn('WhatsApp QR startup timed out without connection or QR');
+        updateStatus(
+            'error',
+            'WhatsApp QR code generate hone mein timeout ho gaya. Kripya "Generate New QR" button par click karein ya VPS connection check karein.'
+        );
+
+        if (sock) {
+            try {
+                sock.end(new Error('Startup timeout'));
+            } catch (e) {}
+            sock = null;
+        }
     }, STARTUP_TIMEOUT_MS);
 };
 
@@ -272,7 +287,7 @@ const restartWhatsApp = async () => {
     clearAuthFolder();
 
     try {
-        await startWhatsApp({ resetAuth: false });
+        await startWhatsApp({ resetAuth: true });
     } catch (error) {
         console.error('Error starting WhatsApp on restart:', errorMessage(error));
     }
@@ -309,7 +324,7 @@ const logoutWhatsApp = async () => {
     updateStatus('starting', 'WhatsApp logged out. Generating a new QR code...');
 
     try {
-        await startWhatsApp({ resetAuth: false });
+        await startWhatsApp({ resetAuth: true });
     } catch (error) {
         console.error('Error restarting WhatsApp after logout:', errorMessage(error));
     }

@@ -93,9 +93,9 @@ const WhatsApp = () => {
             return undefined;
         }
 
-        const timer = setTimeout(() => setShowRetry(true), 15000);
+        const timer = setTimeout(() => setShowRetry(true), 8000);
         return () => clearTimeout(timer);
-    }, [status.connected, status.qr, status.updatedAt]);
+    }, [status.connected, status.qr]);
 
     return (
         <div className="space-y-5">

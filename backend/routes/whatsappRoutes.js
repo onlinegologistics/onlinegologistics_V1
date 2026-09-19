@@ -22,7 +22,7 @@ router.get('/status', protect, async (req, res) => {
             return res.status(403).json({ message: 'Not authorized' });
         }
         const status = getWhatsAppStatus();
-        if (!status.connected && !status.qr && (status.state === 'idle' || status.state === 'error')) {
+        if (!status.connected && !status.qr && status.state === 'idle') {
             startWhatsApp().catch(() => {});
         }
         res.json(status);
