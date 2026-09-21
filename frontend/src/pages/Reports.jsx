@@ -46,11 +46,11 @@ const Reports = () => {
         creditAmount: 0,
     });
 
-    const config = {
-        headers: {
-            Authorization: `Bearer ${user?.token}`,
-        },
+    const getAuthHeaders = () => {
+        const token = user?.token || JSON.parse(localStorage.getItem('userInfo') || '{}')?.token;
+        return token ? { Authorization: `Bearer ${token}` } : {};
     };
+    const config = { headers: getAuthHeaders() };
 
     // Fetch all luggage and parcel data
     const fetchReportData = async () => {

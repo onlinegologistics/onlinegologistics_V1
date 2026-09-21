@@ -10,11 +10,12 @@ const { buildBookingConfirmationMessage } = require('../utils/whatsappMessage');
 // @access  Private (branch, admin)
 router.get('/download/csv', protect, async (req, res) => {
     try {
-        if (!['branch', 'admin'].includes(req.user.role)) {
+        const userRole = (req.user?.role || '').toLowerCase().trim();
+        if (!['branch', 'admin'].includes(userRole)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
         const filter = {};
-        if (req.user.role === 'branch') {
+        if (userRole === 'branch') {
             filter.createdBy = req.user._id;
         }
         if (req.query.clientType) filter.clientType = req.query.clientType;
@@ -62,6 +63,7 @@ router.get('/download/csv', protect, async (req, res) => {
         res.setHeader('Content-Disposition', 'attachment; filename=parcel_records.csv');
         res.send(csv);
     } catch (error) {
+        console.error('[CSV EXPORT ERROR]', error);
         res.status(500).json({ message: error.message });
     }
 });
@@ -70,7 +72,8 @@ router.get('/download/csv', protect, async (req, res) => {
 // @route   POST /api/parcel-records
 router.post('/', protect, async (req, res) => {
     try {
-        if (!['branch', 'admin'].includes(req.user.role)) {
+        const userRole = (req.user?.role || '').toLowerCase().trim();
+        if (!['branch', 'admin'].includes(userRole)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
         const record = await ParcelRecord.create({
@@ -98,6 +101,7 @@ router.post('/', protect, async (req, res) => {
             whatsappError,
         });
     } catch (error) {
+        console.error('[POST PARCEL RECORD ERROR]', error);
         res.status(500).json({ message: error.message });
     }
 });
@@ -106,11 +110,12 @@ router.post('/', protect, async (req, res) => {
 // @route   GET /api/parcel-records
 router.get('/', protect, async (req, res) => {
     try {
-        if (!['branch', 'admin'].includes(req.user.role)) {
+        const userRole = (req.user?.role || '').toLowerCase().trim();
+        if (!['branch', 'admin'].includes(userRole)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
         const filter = {};
-        if (req.user.role === 'branch') {
+        if (userRole === 'branch') {
             filter.createdBy = req.user._id;
         }
         if (req.query.clientType) filter.clientType = req.query.clientType;
@@ -123,8 +128,9 @@ router.get('/', protect, async (req, res) => {
             .populate('createdBy', 'name username')
             .sort({ createdAt: -1 })
             .lean();
-        res.json(records);
+        res.json(records || []);
     } catch (error) {
+        console.error('[GET PARCEL RECORDS ERROR]', error);
         res.status(500).json({ message: error.message });
     }
 });
@@ -132,13 +138,15 @@ router.get('/', protect, async (req, res) => {
 // @desc    Update a parcel record
 router.put('/:id', protect, async (req, res) => {
     try {
-        if (!['branch', 'admin'].includes(req.user.role)) {
+        const userRole = (req.user?.role || '').toLowerCase().trim();
+        if (!['branch', 'admin'].includes(userRole)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
         const record = await ParcelRecord.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!record) return res.status(404).json({ message: 'Record not found' });
         res.json(record);
     } catch (error) {
+        console.error('[PUT PARCEL RECORD ERROR]', error);
         res.status(500).json({ message: error.message });
     }
 });
@@ -146,7 +154,8 @@ router.put('/:id', protect, async (req, res) => {
 // @desc    Delete a parcel record (admin or branch who created it)
 router.delete('/:id', protect, async (req, res) => {
     try {
-        if (!['admin', 'branch'].includes(req.user.role)) {
+        const userRole = (req.user?.role || '').toLowerCase().trim();
+        if (!['admin', 'branch'].includes(userRole)) {
             return res.status(403).json({ message: 'Not authorized to delete records' });
         }
 
@@ -154,13 +163,14 @@ router.delete('/:id', protect, async (req, res) => {
         if (!record) return res.status(404).json({ message: 'Record not found' });
 
         // Branch can only delete their own records
-        if (req.user.role === 'branch' && record.createdBy?.toString() !== req.user._id.toString()) {
+        if (userRole === 'branch' && record.createdBy?.toString() !== req.user._id.toString()) {
             return res.status(403).json({ message: 'You can only delete records you created' });
         }
 
         await ParcelRecord.findByIdAndDelete(req.params.id);
         res.json({ message: 'Record deleted' });
     } catch (error) {
+        console.error('[DELETE PARCEL RECORD ERROR]', error);
         res.status(500).json({ message: error.message });
     }
 });

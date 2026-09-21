@@ -58,7 +58,25 @@ const AddRecord = () => {
     
     const [selectedRecord, setSelectedRecord] = useState(null); // For View Details modal
 
-    const config = { headers: { Authorization: `Bearer ${user?.token}` } };
+    const getAuthHeaders = () => {
+        const token = user?.token || JSON.parse(localStorage.getItem('userInfo') || '{}')?.token;
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    };
+
+    const fetchRecords = async () => {
+        setFetchingRecords(true);
+        try {
+            const headers = getAuthHeaders();
+            const params = filterType ? { clientType: filterType } : {};
+            const { data } = await axios.get('/api/parcel-records', { headers, params });
+            setRecords(Array.isArray(data) ? data : []);
+        } catch (e) {
+            console.error('Failed to load parcel records:', e);
+            toast.error(e.response?.data?.message || 'Failed to load records');
+        } finally {
+            setFetchingRecords(false);
+        }
+    };
 
     useEffect(() => {
         fetchRecords();
@@ -105,19 +123,6 @@ const AddRecord = () => {
             creditAmount: cAmount,
         };
     }, [records]);
-
-    const fetchRecords = async () => {
-        setFetchingRecords(true);
-        try {
-            const params = filterType ? { clientType: filterType } : {};
-            const { data } = await axios.get('/api/parcel-records', { ...config, params });
-            setRecords(data);
-        } catch (e) {
-            toast.error('Failed to load records');
-        } finally {
-            setFetchingRecords(false);
-        }
-    };
 
     const filteredRecords = useMemo(() => {
         if (!searchQuery.trim()) return records;
@@ -203,17 +208,18 @@ const AddRecord = () => {
 
         setLoading(true);
         try {
+            const headers = getAuthHeaders();
             const payload = {
                 clientType: tab,
                 ...clientForm,
                 destinations: destinations
             };
 
-            const { data } = await axios.post('/api/parcel-records', payload, config);
+            const { data } = await axios.post('/api/parcel-records', payload, { headers });
             if (data?.whatsappSent) {
-                toast.success('Record added & WhatsApp confirmation sent! 📱✅');
+                toast.success('Record added & WhatsApp confirmation sent! 📦');
             } else {
-                toast.success('Record added successfully! ✅');
+                toast.success('Record added successfully! 📦');
             }
 
             setClientForm({ ...emptyClient, fromCity: 'Pune' });
@@ -221,7 +227,7 @@ const AddRecord = () => {
             setShowForm(false);
             fetchRecords();
         } catch (e) { 
-            toast.error(e.response?.data?.message || 'Failed'); 
+            toast.error(e.response?.data?.message || 'Failed to save record'); 
         } finally { 
             setLoading(false); 
         }
@@ -230,17 +236,23 @@ const AddRecord = () => {
     const handleDelete = async (id) => {
         if (!window.confirm('Delete this record?')) return;
         try {
-            await axios.delete(`/api/parcel-records/${id}`, config);
+            const headers = getAuthHeaders();
+            await axios.delete(`/api/parcel-records/${id}`, { headers });
             toast.success('Deleted');
             fetchRecords();
-        } catch (e) { toast.error('Delete failed'); }
+        } catch (e) { 
+            toast.error(e.response?.data?.message || 'Delete failed'); 
+        }
     };
 
     const handleDownload = async () => {
         try {
+            const headers = getAuthHeaders();
             const params = filterType ? { clientType: filterType } : {};
             const res = await axios.get('/api/parcel-records/download/csv', {
-                ...config, params, responseType: 'blob'
+                headers,
+                params,
+                responseType: 'blob'
             });
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const a = document.createElement('a');
@@ -249,7 +261,9 @@ const AddRecord = () => {
             a.click();
             window.URL.revokeObjectURL(url);
             toast.success('CSV Downloaded!');
-        } catch (e) { toast.error('Download failed'); }
+        } catch (e) { 
+            toast.error(e.response?.data?.message || 'Download failed'); 
+        }
     };
 
     const typeLabel = (t) => t === 'regular' ? 'Client' : t === 'agent' ? 'Agent' : t === 'Customer' ? 'Customer' : t;
@@ -278,221 +292,374 @@ const AddRecord = () => {
                         {showForm ? <><ChevronUp size={16} /> Hide Form</> : <><Plus size={16} /> New Entry</>}
                     </button>
                     <button onClick={handleDownload}
-                        className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-2 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 flex items-center gap-1.5 shadow-lg text-sm">
+                        className="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-700 flex items-center gap-1.5 shadow text-sm">
                         <Download size={16} /> Download CSV
                     </button>
                 </div>
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-xl shadow-md min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-purple-100 text-xs font-bold uppercase tracking-wider">Total Records</p>
-                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={stats.totalRecords.toLocaleString('en-IN')}>
-                                {stats.totalRecords.toLocaleString('en-IN')}
-                            </p>
-                        </div>
-                        <Package className="w-8 h-8 lg:w-10 lg:h-10 text-purple-200 opacity-80 shrink-0" />
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 rounded-xl shadow">
+                    <p className="text-xs uppercase font-medium opacity-80">Total Records</p>
+                    <div className="flex justify-between items-end mt-1">
+                        <h3 className="text-2xl font-bold">{stats.totalRecords.toLocaleString('en-IN')}</h3>
+                        <Package size={24} className="opacity-60" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-xl shadow-md min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-green-100 text-xs font-bold uppercase tracking-wider">Total Amount</p>
-                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.totalAmount)}`}>
-                                ₹{formatCurrency(stats.totalAmount)}
-                            </p>
-                        </div>
-                        <DollarSign className="w-8 h-8 lg:w-10 lg:h-10 text-green-200 opacity-80 shrink-0" />
+                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-4 rounded-xl shadow">
+                    <p className="text-xs uppercase font-medium opacity-80">Total Amount</p>
+                    <div className="flex justify-between items-end mt-1">
+                        <h3 className="text-2xl font-bold">₹{formatCurrency(stats.totalAmount)}</h3>
+                        <DollarSign size={24} className="opacity-60" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-xl shadow-md min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Paid</p>
-                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.paidAmount)}`}>
-                                ₹{formatCurrency(stats.paidAmount)}
-                            </p>
-                        </div>
-                        <TrendingUp className="w-8 h-8 lg:w-10 lg:h-10 text-blue-200 opacity-80 shrink-0" />
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-xl shadow">
+                    <p className="text-xs uppercase font-medium opacity-80">Paid</p>
+                    <div className="flex justify-between items-end mt-1">
+                        <h3 className="text-2xl font-bold">₹{formatCurrency(stats.paidAmount)}</h3>
+                        <TrendingUp size={24} className="opacity-60" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-4 rounded-xl shadow-md min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-yellow-100 text-xs font-bold uppercase tracking-wider">To Pay</p>
-                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.toPayAmount)}`}>
-                                ₹{formatCurrency(stats.toPayAmount)}
-                            </p>
-                        </div>
-                        <TrendingUp className="w-8 h-8 lg:w-10 lg:h-10 text-yellow-200 opacity-80 shrink-0" />
+                <div className="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-4 rounded-xl shadow">
+                    <p className="text-xs uppercase font-medium opacity-80">To Pay</p>
+                    <div className="flex justify-between items-end mt-1">
+                        <h3 className="text-2xl font-bold">₹{formatCurrency(stats.toPayAmount)}</h3>
+                        <TrendingUp size={24} className="opacity-60" />
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-xl shadow-md min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-orange-100 text-xs font-bold uppercase tracking-wider">Credit</p>
-                            <p className="text-xl lg:text-2xl font-extrabold mt-1 truncate" title={`₹${formatCurrency(stats.creditAmount)}`}>
-                                ₹{formatCurrency(stats.creditAmount)}
-                            </p>
-                        </div>
-                        <TrendingUp className="w-8 h-8 lg:w-10 lg:h-10 text-orange-200 opacity-80 shrink-0" />
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-xl shadow col-span-2 md:col-span-1">
+                    <p className="text-xs uppercase font-medium opacity-80">Credit</p>
+                    <div className="flex justify-between items-end mt-1">
+                        <h3 className="text-2xl font-bold">₹{formatCurrency(stats.creditAmount)}</h3>
+                        <TrendingUp size={24} className="opacity-60" />
                     </div>
                 </div>
             </div>
 
-            {/* Add Form */}
+            {/* Collapsible Form */}
             {showForm && (
-                <div className="bg-white rounded-2xl shadow border overflow-hidden">
-                    <div className="flex border-b">
-                        {TABS.map(t => {
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 animate-fadeIn">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-gray-800">Add New Parcel Record</h2>
+                        <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    {/* Tab Selection */}
+                    <div className="flex gap-2 mb-6 border-b border-gray-200 pb-3">
+                        {TABS.map((t) => {
                             const Icon = t.icon;
-                            const active = tab === t.id;
-                            const colors = t.color === 'blue' ? 'border-blue-600 text-blue-700 bg-blue-50' : t.color === 'green' ? 'border-green-600 text-green-700 bg-green-50' : 'border-purple-600 text-purple-700 bg-purple-50';
+                            const isActive = tab === t.id;
                             return (
-                                <button key={t.id} onClick={() => setTab(t.id)}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold border-b-2 transition-all ${active ? colors : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
-                                    <Icon size={16} /> {t.label}
+                                <button
+                                    key={t.id}
+                                    onClick={() => setTab(t.id)}
+                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                                        isActive
+                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    <Icon size={16} />
+                                    {t.label}
                                 </button>
                             );
                         })}
                     </div>
-                    <form onSubmit={handleSubmit} className="p-5 space-y-6">
-                        
-                        {/* Client/Agent Details Section */}
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                            <h3 className="text-sm font-bold text-gray-700 mb-3 border-b pb-2">{typeLabel(tab)} Details</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div><label className="text-xs font-bold text-gray-500 block mb-1">{typeLabel(tab)} Name *</label>
-                                    <input name="clientName" value={clientForm.clientName} onChange={handleClientChange} required className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Name" /></div>
-                                <div><label className="text-xs font-bold text-gray-500 block mb-1">Mobile</label>
-                                    <input name="mobile" value={clientForm.mobile} onChange={handleClientChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Mobile" /></div>
-                                <div><label className="text-xs font-bold text-gray-500 block mb-1">Company</label>
-                                    <input name="company" value={clientForm.company} onChange={handleClientChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Company" /></div>
-                                <div><label className="text-xs font-bold text-gray-500 block mb-1">From City *</label>
-                                    <input name="fromCity" value={clientForm.fromCity} onChange={handleClientChange} required className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="From" /></div>
-                                <div><label className="text-xs font-bold text-gray-500 block mb-1">Date</label>
-                                    <input type="date" name="date" value={clientForm.date} onChange={handleClientChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" /></div>
+
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Client Details */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                    {tab === 'regular' ? 'Client Name' : tab === 'agent' ? 'Agent Name' : 'Customer Name'} *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="clientName"
+                                    value={clientForm.clientName}
+                                    onChange={handleClientChange}
+                                    required
+                                    placeholder="Full name"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">Mobile Number *</label>
+                                <input
+                                    type="tel"
+                                    name="mobile"
+                                    value={clientForm.mobile}
+                                    onChange={handleClientChange}
+                                    required
+                                    placeholder="10-digit mobile"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">Company / Business</label>
+                                <input
+                                    type="text"
+                                    name="company"
+                                    value={clientForm.company}
+                                    onChange={handleClientChange}
+                                    placeholder="Company name"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">From City</label>
+                                <input
+                                    type="text"
+                                    name="fromCity"
+                                    value={clientForm.fromCity}
+                                    onChange={handleClientChange}
+                                    placeholder="Origin city"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">Booking Date</label>
+                                <input
+                                    type="date"
+                                    name="date"
+                                    value={clientForm.date}
+                                    onChange={handleClientChange}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">Address</label>
+                                <input
+                                    type="text"
+                                    name="address"
+                                    value={clientForm.address}
+                                    onChange={handleClientChange}
+                                    placeholder="Full address"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
                             </div>
                         </div>
 
-                        {/* Destinations Section */}
+                        {/* Destinations */}
                         <div className="space-y-4">
-                            <h3 className="text-sm font-bold text-gray-700 border-b pb-2">Destinations / Parcels</h3>
+                            <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="text-sm font-bold text-gray-700">Parcel Destinations</h3>
+                                <button
+                                    type="button"
+                                    onClick={addDestination}
+                                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1"
+                                >
+                                    <Plus size={14} /> Add Destination
+                                </button>
+                            </div>
+
                             {destinations.map((dest, index) => (
-                                <div key={index} className="relative p-4 rounded-xl border border-blue-100 bg-white shadow-sm">
+                                <div key={index} className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3 relative">
                                     {destinations.length > 1 && (
-                                        <button type="button" onClick={() => removeDestination(index)} className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1 rounded-full">
-                                            <X size={16} />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeDestination(index)}
+                                            className="absolute top-3 right-3 text-red-400 hover:text-red-600"
+                                        >
+                                            <Trash2 size={16} />
                                         </button>
                                     )}
-                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">To City *</label>
-                                            <input name="toCity" value={dest.toCity} onChange={(e) => handleDestChange(index, e)} required className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="To" /></div>
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">No. of Parcels</label>
-                                            <input type="number" name="noOfParcels" value={dest.noOfParcels} onChange={(e) => handleDestChange(index, e)} min="1" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" /></div>
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">Weight</label>
-                                            <input name="weight" value={dest.weight} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="e.g. 5kg" /></div>
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">Parcel Type</label>
-                                            <select name="parcelType" value={dest.parcelType} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
-                                                <option value="">Select</option>
-                                                <option>Box</option><option>Bag</option><option>Envelope</option><option>Bundle</option><option>Other</option>
-                                            </select></div>
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">Status</label>
-                                            <select name="status" value={dest.status} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
-                                                <option>Booked</option><option>In Transit</option><option>Delivered</option><option>Cancelled</option>
-                                            </select></div>
+
+                                    <div className="text-xs font-bold text-gray-500 mb-2">
+                                        Destination #{index + 1}
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">Freight ₹</label>
-                                            <input type="number" name="freight" value={dest.freight} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" /></div>
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">Other Charges ₹</label>
-                                            <input type="number" name="otherCharges" value={dest.otherCharges} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" /></div>
-                                        <div><label className="text-xs font-bold text-green-600 block mb-1">Total ₹</label>
-                                            <input type="number" readOnly value={dest.totalAmount} className="w-full border-2 border-green-200 bg-green-50 rounded-lg px-3 py-2 text-sm font-bold text-green-700" /></div>
-                                        <div><label className="text-xs font-bold text-gray-500 block mb-1">Payment</label>
-                                            <select name="paymentMode" value={dest.paymentMode} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
-                                                <option>Paid</option><option>ToPay</option><option>Credit</option><option>FOC</option>
-                                            </select></div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div><input name="description" value={dest.description} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Parcel description" /></div>
-                                        <div><input name="remarks" value={dest.remarks} onChange={(e) => handleDestChange(index, e)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" placeholder="Remarks/Notes" /></div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">To City *</label>
+                                            <input
+                                                type="text"
+                                                name="toCity"
+                                                value={dest.toCity}
+                                                onChange={(e) => handleDestChange(index, e)}
+                                                required
+                                                placeholder="Destination city"
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">No. of Parcels</label>
+                                            <input
+                                                type="number"
+                                                name="noOfParcels"
+                                                min="1"
+                                                value={dest.noOfParcels}
+                                                onChange={(e) => handleDestChange(index, e)}
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Weight</label>
+                                            <input
+                                                type="text"
+                                                name="weight"
+                                                value={dest.weight}
+                                                onChange={(e) => handleDestChange(index, e)}
+                                                placeholder="e.g. 5 kg"
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Parcel Type</label>
+                                            <input
+                                                type="text"
+                                                name="parcelType"
+                                                value={dest.parcelType}
+                                                onChange={(e) => handleDestChange(index, e)}
+                                                placeholder="Box, Bag, etc."
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Freight (₹)</label>
+                                            <input
+                                                type="number"
+                                                name="freight"
+                                                min="0"
+                                                value={dest.freight}
+                                                onChange={(e) => handleDestChange(index, e)}
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Other Charges (₹)</label>
+                                            <input
+                                                type="number"
+                                                name="otherCharges"
+                                                min="0"
+                                                value={dest.otherCharges}
+                                                onChange={(e) => handleDestChange(index, e)}
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Total (₹)</label>
+                                            <input
+                                                type="number"
+                                                name="totalAmount"
+                                                value={dest.totalAmount}
+                                                readOnly
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-gray-100 font-bold text-gray-700"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Payment Mode</label>
+                                            <select
+                                                name="paymentMode"
+                                                value={dest.paymentMode}
+                                                onChange={(e) => handleDestChange(index, e)}
+                                                className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
+                                            >
+                                                <option value="Paid">Paid</option>
+                                                <option value="ToPay">To Pay</option>
+                                                <option value="Credit">Credit</option>
+                                                <option value="FOC">FOC</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
-                            <button type="button" onClick={addDestination} className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:text-blue-800">
-                                <Plus size={16} /> Add Another Destination
-                            </button>
                         </div>
 
-                        <div className="flex gap-3 pt-3 border-t">
-                            <button type="submit" disabled={loading}
-                                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 shadow-lg disabled:opacity-50 text-sm">
-                                {loading ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : null}
-                                Submit
+                        <div className="flex justify-end gap-3 pt-4 border-t">
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                className="px-5 py-2 border rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                            >
+                                Cancel
                             </button>
-                            <button type="button" onClick={() => { setClientForm({ ...emptyClient, fromCity: 'Pune' }); setDestinations([{ ...emptyDest }]); }} className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 text-sm">Reset</button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 shadow-md shadow-blue-200"
+                            >
+                                {loading ? 'Saving...' : 'Save Record'}
+                            </button>
                         </div>
                     </form>
                 </div>
             )}
 
-            {/* Filter & Search Bar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mt-4">
-                {/* Type Filters */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-500">Filter:</span>
-                    {[{ id: '', label: 'All' }, { id: 'regular', label: 'Client' }, { id: 'agent', label: 'Agent' }, { id: 'Customer', label: 'Customer' }].map(f => (
-                        <button key={f.id} onClick={() => { setFilterType(f.id); setCurrentPage(1); }}
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${filterType === f.id ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                            {f.label}
+            {/* Table & Filters */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-gray-500 uppercase">Filter:</span>
+                        <button
+                            onClick={() => setFilterType('')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                                filterType === '' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                        >
+                            All
                         </button>
-                    ))}
-                </div>
-
-                {/* Search & Pagination Settings */}
-                <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-                    {/* Search Field */}
-                    <div className="relative flex-1 sm:w-72">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            placeholder="Search client, mobile, route..."
-                            className="w-full pl-9 pr-8 py-1.5 text-sm bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition"
-                        />
-                        {searchQuery && (
-                            <button
-                                type="button"
-                                onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
-                                title="Clear Search"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
+                        <button
+                            onClick={() => setFilterType('regular')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                                filterType === 'regular' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                        >
+                            Client
+                        </button>
+                        <button
+                            onClick={() => setFilterType('agent')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                                filterType === 'agent' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                        >
+                            Agent
+                        </button>
+                        <button
+                            onClick={() => setFilterType('Customer')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                                filterType === 'Customer' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                        >
+                            Customer
+                        </button>
                     </div>
 
-                    {/* Items Per Page */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1 sm:w-64">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search client, mobile, route..."
+                                className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
                         <select
                             value={itemsPerPage}
-                            onChange={(e) => {
-                                setItemsPerPage(Number(e.target.value));
-                                setCurrentPage(1);
-                            }}
-                            className="border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer"
+                            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                            className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                             <option value={10}>10 / page</option>
                             <option value={25}>25 / page</option>
@@ -500,89 +667,102 @@ const AddRecord = () => {
                             <option value={100}>100 / page</option>
                         </select>
                     </div>
-
-                    <span className="text-xs text-gray-500 font-medium shrink-0 hidden lg:inline">
-                        {filteredRecords.length.toLocaleString('en-IN')} records
-                    </span>
                 </div>
-            </div>
 
-            {/* Records Table */}
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                 {fetchingRecords ? (
-                    <div className="p-16 text-center flex flex-col items-center justify-center gap-3">
-                        <div className="animate-spin h-8 w-8 border-3 border-blue-600 border-t-transparent rounded-full" />
-                        <p className="text-gray-600 font-semibold text-sm">Loading records, please wait...</p>
-                    </div>
-                ) : records.length === 0 ? (
-                    <div className="p-12 text-center">
-                        <p className="text-gray-400 text-lg">No records found</p>
-                        <p className="text-gray-300 text-sm mt-1">Add a record to get started</p>
+                    <div className="text-center py-12 text-gray-400 text-sm">
+                        Loading records...
                     </div>
                 ) : filteredRecords.length === 0 ? (
-                    <div className="p-12 text-center">
-                        <p className="text-gray-500 font-semibold text-base">No matching records found</p>
-                        <p className="text-gray-400 text-xs mt-1">No results matching "{searchQuery}". Try another keyword or clear search.</p>
-                        <button
-                            onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
-                            className="mt-3 px-3.5 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
-                        >
-                            Clear Search
-                        </button>
+                    <div className="text-center py-12 text-gray-400">
+                        <Package size={48} className="mx-auto mb-2 opacity-30" />
+                        <p className="font-semibold text-gray-600">No records found</p>
+                        <p className="text-xs text-gray-400 mt-1">Add a record to get started</p>
                     </div>
                 ) : (
                     <>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm table-fixed">
-                                <thead>
-                                    <tr className="bg-gray-50 text-left">
-                                        <th className="w-12 px-3 py-3 text-xs font-bold text-gray-500 uppercase">#</th>
-                                        <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Date</th>
-                                        <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Mobile No</th>
-                                        <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Client</th>
-                                        <th className="w-28 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Company</th>
-                                        <th className="w-36 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Route</th>
-                                        <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-center">Parcels</th>
-                                        <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Total ₹</th>
-                                        <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Status</th>
-                                        {user?.role === 'admin' && <th className="w-24 px-3 py-3 text-xs font-bold text-gray-500 uppercase">Branch</th>}
-                                        <th className="w-16 px-3 py-3 text-xs font-bold text-gray-500 uppercase text-right">Action</th>
+                            <table className="w-full text-xs">
+                                <thead className="bg-gray-50 text-gray-600 font-semibold border-b">
+                                    <tr>
+                                        <th className="py-3 px-3 text-left">Date</th>
+                                        <th className="py-3 px-3 text-left">Type</th>
+                                        <th className="py-3 px-3 text-left">Client</th>
+                                        <th className="py-3 px-3 text-left">Mobile</th>
+                                        <th className="py-3 px-3 text-left">Route</th>
+                                        <th className="py-3 px-3 text-center">Parcels</th>
+                                        <th className="py-3 px-3 text-right">Total (₹)</th>
+                                        <th className="py-3 px-3 text-center">Payment</th>
+                                        <th className="py-3 px-3 text-center">Status</th>
+                                        <th className="py-3 px-3 text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {currentRecords.map((r, idx) => {
-                                        const i = indexOfFirstItem + idx;
+                                    {currentRecords.map((r) => {
                                         const dests = r.destinations && r.destinations.length > 0 ? r.destinations : [r];
-                                        const toCityStr = dests.map(d => d.toCity).join(', ');
-                                        const totalParcels = dests.reduce((sum, d) => sum + (Number(d.noOfParcels) || 0), 0);
-                                        const totalAmount = dests.reduce((sum, d) => sum + (Number(d.totalAmount) || 0), 0);
-                                        const statuses = [...new Set(dests.map(d => d.status))];
-                                        const displayStatus = statuses.length === 1 ? statuses[0] : 'Mixed';
+                                        const firstDest = dests[0] || {};
+                                        const routeText = dests.length > 1
+                                            ? `${r.fromCity || '-'} -> ${firstDest.toCity || '-'} (+${dests.length - 1} more)`
+                                            : `${r.fromCity || '-'} -> ${firstDest.toCity || '-'}`;
+                                        const totalParcels = dests.reduce((acc, d) => acc + (Number(d.noOfParcels) || 0), 0);
+                                        const totalAmt = dests.reduce((acc, d) => acc + (parseFloat(d.totalAmount) || 0), 0);
+                                        const pMode = dests.length === 1 ? (firstDest.paymentMode || r.paymentMode || 'Paid') : 'Mixed';
+                                        const pStatus = dests.length === 1 ? (firstDest.status || r.status || 'Booked') : 'Mixed';
 
                                         return (
-                                            <tr key={r._id} className="hover:bg-gray-50/50">
-                                                <td className="px-3 py-3 text-gray-500">{i + 1}</td>
-                                                <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{new Date(r.date).toLocaleDateString('en-IN')}</td>
-                                                <td className="px-3 py-3 whitespace-nowrap">
-                                                    {r.mobile ? (
-                                                        <a href={`tel:${r.mobile}`} className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-xs">
-                                                            {r.mobile}
-                                                        </a>
-                                                    ) : (
-                                                        <span className="text-gray-400">—</span>
-                                                    )}
+                                            <tr key={r._id} className="hover:bg-gray-50/80 transition">
+                                                <td className="py-3 px-3 text-gray-600 whitespace-nowrap">
+                                                    {new Date(r.date || r.createdAt).toLocaleDateString('en-IN')}
                                                 </td>
-                                                <td className="px-3 py-3 font-semibold text-gray-800 truncate" title={r.clientName}>{r.clientName}</td>
-                                                <td className="px-3 py-3 text-gray-600 truncate" title={r.company || ''}>{r.company || '-'}</td>
-                                                <td className="px-3 py-3 text-gray-600 truncate" title={`${r.fromCity} → ${toCityStr}`}>
-                                                    <span className="text-xs">{r.fromCity} → <span className="font-semibold">{toCityStr}</span></span>
+                                                <td className="py-3 px-3 whitespace-nowrap">
+                                                    {typeBadge(r.clientType)}
                                                 </td>
-                                                <td className="px-3 py-3 text-gray-700 font-semibold text-center">{totalParcels}</td>
-                                                <td className="px-3 py-3 font-bold text-green-700 whitespace-nowrap">₹{totalAmount}</td>
-                                                <td className="px-3 py-3">{statusBadge(displayStatus)}</td>
-                                                {user?.role === 'admin' && <td className="px-3 py-3 text-gray-500 text-xs truncate">{r.createdBy?.name || '-'}</td>}
-                                                <td className="px-3 py-3 flex gap-1 justify-end">
-                                                    <button onClick={() => setSelectedRecord(r)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="View Details"><Eye size={15} /></button>
+                                                <td className="py-3 px-3 font-semibold text-gray-800">
+                                                    {r.clientName}
+                                                    {r.company && <span className="block text-[10px] text-gray-400 font-normal">{r.company}</span>}
+                                                </td>
+                                                <td className="py-3 px-3 text-gray-600 whitespace-nowrap font-mono">
+                                                    {r.mobile}
+                                                </td>
+                                                <td className="py-3 px-3 text-gray-700">
+                                                    {routeText}
+                                                </td>
+                                                <td className="py-3 px-3 text-center font-bold text-gray-800">
+                                                    {totalParcels}
+                                                </td>
+                                                <td className="py-3 px-3 text-right font-bold text-gray-800">
+                                                    ₹{formatCurrency(totalAmt)}
+                                                </td>
+                                                <td className="py-3 px-3 text-center whitespace-nowrap">
+                                                    <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                                                        pMode === 'Paid' ? 'bg-green-50 text-green-700 border border-green-200' :
+                                                        pMode === 'ToPay' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                        pMode === 'Credit' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                                                        'bg-gray-50 text-gray-700'
+                                                    }`}>
+                                                        {pMode}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3 text-center whitespace-nowrap">
+                                                    {statusBadge(pStatus)}
+                                                </td>
+                                                <td className="py-3 px-3 text-center whitespace-nowrap">
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <button
+                                                            onClick={() => setSelectedRecord(r)}
+                                                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                            title="View Details"
+                                                        >
+                                                            <Eye size={15} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(r._id)}
+                                                            className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                                            title="Delete Record"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -591,7 +771,7 @@ const AddRecord = () => {
                             </table>
                         </div>
 
-                        {/* Pagination Bar */}
+                        {/* Pagination */}
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border-t border-gray-100 rounded-b-xl">
                             <div className="text-xs text-gray-500">
                                 Showing <span className="font-semibold text-gray-700">{filteredRecords.length === 0 ? 0 : indexOfFirstItem + 1}</span> to{' '}
@@ -711,7 +891,7 @@ const AddRecord = () => {
                         fetchRecords();
                         setSelectedRecord(null);
                     }}
-                    config={config}
+                    config={{ headers: getAuthHeaders() }}
                 />
             )}
         </div>

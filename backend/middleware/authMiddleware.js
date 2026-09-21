@@ -11,6 +11,10 @@ const protect = async (req, res, next) => {
         try {
             token = req.headers.authorization.split(' ')[1];
 
+            if (!token || token === 'undefined' || token === 'null') {
+                return res.status(401).json({ message: 'Not authorized, invalid token' });
+            }
+
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
             req.user = await User.findById(decoded.id).select('-password');
@@ -20,35 +24,36 @@ const protect = async (req, res, next) => {
             }
 
             if (!req.user) {
-                res.status(401);
-                throw new Error('Not authorized, user not found');
+                return res.status(401).json({ message: 'Not authorized, user not found' });
             }
 
-            next();
+            return next();
         } catch (error) {
-            console.error(error);
-            res.status(401).json({ message: 'Not authorized, token failed' });
+            console.error('[AUTH ERROR]', error.message);
+            return res.status(401).json({ message: 'Not authorized, token failed' });
         }
     }
 
     if (!token) {
-        res.status(401).json({ message: 'Not authorized, no token' });
+        return res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
 
 const admin = (req, res, next) => {
-    if (req.user && (req.user.role === 'admin' || req.user.role === 'branch')) {
-        next();
+    const role = (req.user?.role || '').toLowerCase().trim();
+    if (req.user && (role === 'admin' || role === 'branch')) {
+        return next();
     } else {
-        res.status(401).json({ message: 'Not authorized as an admin' });
+        return res.status(401).json({ message: 'Not authorized as an admin' });
     }
 };
 
 const adminOrUser = (req, res, next) => {
-    if (req.user && (req.user.role === 'admin' || req.user.role === 'user' || req.user.role === 'branch' || req.user.role === 'agent')) {
-        next();
+    const role = (req.user?.role || '').toLowerCase().trim();
+    if (req.user && (role === 'admin' || role === 'user' || role === 'branch' || role === 'agent')) {
+        return next();
     } else {
-        res.status(401).json({ message: 'Not authorized. Admin or User role required.' });
+        return res.status(401).json({ message: 'Not authorized. Admin or User role required.' });
     }
 };
 
