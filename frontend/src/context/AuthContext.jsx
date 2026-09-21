@@ -1,19 +1,36 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+﻿import { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
 
+// Request interceptor to automatically attach Authorization header if present
+axios.interceptors.request.use((config) => {
+    const userInfo = localStorage.getItem('userInfo');
+    if (userInfo) {
+        try {
+            const parsed = JSON.parse(userInfo);
+            if (parsed?.token) {
+                config.headers.Authorization = `Bearer ${parsed.token}`;
+            }
+        } catch (e) {
+            console.error('Error parsing userInfo for auth header', e);
+        }
+    }
+    return config;
+});
+
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(() => {
+        try {
+            const userInfo = localStorage.getItem('userInfo');
+            return userInfo ? JSON.parse(userInfo) : null;
+        } catch (e) {
+            return null;
+        }
+    });
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const userInfo = localStorage.getItem('userInfo');
-        if (userInfo) {
-            setUser(JSON.parse(userInfo));
-        }
-        setLoading(false);
-
         const interceptor = axios.interceptors.response.use(
             (response) => response,
             (error) => {
